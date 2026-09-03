@@ -89,3 +89,10 @@ pyannote/audio/version.py
 
 # vim
 .vim
+
+.env
+
+# personal scratch
+diarisation-env/
+Samples/
+*.mp4
