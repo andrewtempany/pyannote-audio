@@ -41,6 +41,11 @@ cli = ["typer>=0.15.1"]
 separation = ["asteroid>=0.5.2", "transformers>=4.48.3"]
 dev = ["ipython>=8.32.0"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires real credentials/network (e.g. HF_TOKEN) and is not run by default; see TICKET-06-runner.md",
+]
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
