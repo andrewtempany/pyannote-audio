@@ -181,6 +181,10 @@
   },
   "active": "5d27a03e19b52f1b",
   "lastOpenFiles": [
+    "Tickets/Open/run-manifest.md",
+    "Tickets/Open/ami-data-acquisition.md",
+    "Tickets/Open",
+    "Tickets",
     "Welcome.md",
     "Docs/Pipelines-Subpackage.md",
     "Docs/Models-Subpackage.md",
@@ -206,8 +210,6 @@
     "Docs/Segmentation Source Interface.md",
     "Docs/Dataset Adapter.md",
     "Docs/Harness Config.md",
-    "Docs/Segmentation Injection Seam.md",
-    "Docs/Environment Setup.md",
     "Docs"
   ]
 }
