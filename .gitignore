@@ -96,3 +96,6 @@ pyannote/audio/version.py
 diarisation-env/
 Samples/
 *.mp4
+
+# Obsidian local UI state
+Obsidian-Diarisation/.obsidian/
