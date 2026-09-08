@@ -99,3 +99,7 @@ Samples/
 
 # Obsidian local UI state
 Obsidian-Diarisation/.obsidian/
+
+# harness run cache/output
+.harness_cache/
+runs/
