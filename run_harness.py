@@ -12,15 +12,25 @@ summary behind.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
+import torch
 from pyannote.metrics.diarization import DiarizationErrorRate, JaccardErrorRate
 
 from harness.config import HarnessConfig
 from harness.datasets import AMIDatasetAdapter
 from harness.reporter import write_report
+from harness.run_manifest import write_manifest
 from harness.runner import Runner
 from harness.scorer import score
+
+
+def _resolve_device(requested: Optional[str]) -> torch.device:
+    """--device flag -> torch.device. `requested=None` auto-detects: cuda if
+    available, else cpu. An explicit value always wins over auto-detection."""
+    if requested is not None:
+        return torch.device(requested)
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def _audio_path(config: HarnessConfig, uri: str) -> Path:
@@ -37,6 +47,8 @@ def run_harness(
     segmentation_source: Any,
     per_file_csv_path: Union[str, Path],
     summary_path: Union[str, Path],
+    clustering_model: Optional[str] = None,
+    runs_dir: Optional[Union[str, Path]] = None,
 ) -> Dict[str, float]:
     der = DiarizationErrorRate(collar=config.der_collar, skip_overlap=config.der_skip_overlap)
     overlap_der = DiarizationErrorRate(
@@ -55,13 +67,29 @@ def run_harness(
         row["uri"] = uri
         rows.append(row)
 
-    return write_report(rows, der, overlap_der, jer, per_file_csv_path, summary_path)
+    summary = write_report(rows, der, overlap_der, jer, per_file_csv_path, summary_path)
+
+    if runs_dir is not None:
+        run_config = {
+            "pipeline_config_id": pipeline_config_id,
+            "segmentation_source_id": segmentation_source.id,
+            "clustering_model": clustering_model,
+            "extra_pipeline_steps": [],
+            "split": config.split,
+            "condition": config.condition,
+            "der_collar": config.der_collar,
+            "der_skip_overlap": config.der_skip_overlap,
+        }
+        write_manifest(run_config, summary, runs_dir)
+
+    return summary
 
 
-if __name__ == "__main__":
+from pyannote.audio import Pipeline
+
+
+def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     import argparse
-
-    from dotenv import dotenv_values
 
     from harness.segmentation import BaselineSegmentation
 
@@ -73,7 +101,12 @@ if __name__ == "__main__":
     parser.add_argument("--dotenv", default=".env")
     parser.add_argument("--per-file-csv", default="per_file.csv")
     parser.add_argument("--summary", default="summary.json")
-    args = parser.parse_args()
+    parser.add_argument("--runs-dir", default="runs")
+    parser.add_argument(
+        "--device", default=None,
+        help="torch device (e.g. cpu, cuda, cuda:0). Default: cuda if available, else cpu.",
+    )
+    args = parser.parse_args(argv)
 
     config = HarnessConfig.load(
         data_root=args.data_root,
@@ -83,10 +116,14 @@ if __name__ == "__main__":
         dotenv_path=args.dotenv,
     )
 
-    from pyannote.audio import Pipeline
-
     checkpoint = "pyannote/speaker-diarization-community-1"
     pipeline = Pipeline.from_pretrained(checkpoint, token=config.hf_token)
+    pipeline = pipeline.to(_resolve_device(args.device))
+
+    # No real clustering-model selection exists yet (see the run-manifest
+    # ticket) -- hardcoded the same way `checkpoint` is above, until a
+    # future ticket implements clustering-model selection.
+    clustering_model = "pyannote-default"
 
     summary = run_harness(
         config,
@@ -95,5 +132,12 @@ if __name__ == "__main__":
         segmentation_source=BaselineSegmentation(),
         per_file_csv_path=args.per_file_csv,
         summary_path=args.summary,
+        clustering_model=clustering_model,
+        runs_dir=args.runs_dir,
     )
     print(summary)
+    return summary
+
+
+if __name__ == "__main__":
+    main()

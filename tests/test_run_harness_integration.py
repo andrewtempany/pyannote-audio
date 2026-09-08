@@ -133,6 +133,41 @@ def test_rerun_is_cache_accelerated(tmp_path, full_pipeline):
     assert spy.call_count == 0
 
 
+def test_run_manifest_written_alongside_report(tmp_path, full_pipeline):
+    config = _config(tmp_path)
+    per_file = tmp_path / "per_file.csv"
+    summary_path = tmp_path / "summary.json"
+    runs_dir = tmp_path / "runs"
+
+    run_harness(
+        config, full_pipeline, "test-pipeline", BaselineSegmentation(), per_file, summary_path,
+        clustering_model="agglomerative-v2", runs_dir=runs_dir,
+    )
+
+    manifest_files = list(runs_dir.glob("*.json"))
+    assert len(manifest_files) == 1
+
+    manifest = json.loads(manifest_files[0].read_text())
+    assert manifest["run_config"]["clustering_model"] == "agglomerative-v2"
+    assert manifest["run_config"]["segmentation_source_id"] == "baseline"
+    assert manifest["run_config"]["pipeline_config_id"] == "test-pipeline"
+    assert manifest["summary"] == json.loads(summary_path.read_text())
+
+
+def test_run_manifest_not_written_on_mid_run_failure(tmp_path, full_pipeline):
+    config = _config(tmp_path)
+    runs_dir = tmp_path / "runs"
+
+    with pytest.raises(NotImplementedError):
+        run_harness(
+            config, full_pipeline, "test-pipeline", OracleSegmentation(),
+            tmp_path / "per_file.csv", tmp_path / "summary.json",
+            clustering_model="agglomerative-v2", runs_dir=runs_dir,
+        )
+
+    assert not runs_dir.exists() or list(runs_dir.glob("*.json")) == []
+
+
 def test_segmentation_source_is_swappable_via_config(tmp_path, full_pipeline):
     config = _config(tmp_path)
 
