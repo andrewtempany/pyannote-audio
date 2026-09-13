@@ -1,4 +1,7 @@
-"""Tests for the run-manifest ticket: harness/run_manifest.py.
+"""Tests for the run-manifest ticket: harness/run_manifest.py, plus T1
+(oracle/ceiling analysis batch): condition/refinement_strategy controlled
+vocabularies, new required fields (corpus, mic_condition, git_commit,
+refinement_strategy), and counts_toward_results defaulting to False.
 
 harness/run_manifest.py doesn't exist yet at the time these tests are
 written -- the first run of this suite is expected to fail on import.
@@ -21,9 +24,13 @@ def _run_config(**overrides):
         "clustering_model": "pyannote-default",
         "extra_pipeline_steps": [],
         "split": "test",
-        "condition": "IHM",
+        "condition": "baseline",
         "der_collar": 0.0,
         "der_skip_overlap": False,
+        "refinement_strategy": "identity",
+        "corpus": "AMI",
+        "mic_condition": "IHM",
+        "git_commit": "abc1234",
     }
     config.update(overrides)
     return config
@@ -32,7 +39,8 @@ def _run_config(**overrides):
 def _summary(**overrides):
     summary = {
         "der": 0.17,
-        "overlap_der": 0.22,
+        "der_overlap_system": 0.22,
+        "der_overlap_assigned": 0.2,
         "jer": 0.3,
         "counting_mae": 0.5,
         "counting_exact_match_percent": 75.0,
@@ -105,7 +113,17 @@ def test_runs_dir_created_if_missing(tmp_path):
     assert manifest_path.exists()
 
 
-@pytest.mark.parametrize("missing_field", ["clustering_model", "segmentation_source_id"])
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "clustering_model",
+        "segmentation_source_id",
+        "refinement_strategy",
+        "corpus",
+        "mic_condition",
+        "git_commit",
+    ],
+)
 def test_missing_required_run_config_field_raises(tmp_path, missing_field):
     run_config = _run_config()
     del run_config[missing_field]
@@ -114,3 +132,65 @@ def test_missing_required_run_config_field_raises(tmp_path, missing_field):
         write_manifest(run_config, _summary(), runs_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "condition",
+    ["baseline", "oracle_segmentation", "oracle_assignment", "nearest_centroid"],
+)
+def test_condition_accepts_each_controlled_vocabulary_value(tmp_path, condition):
+    run_config = _run_config(condition=condition)
+
+    manifest_path = write_manifest(run_config, _summary(), runs_dir=tmp_path)
+
+    written = json.loads(manifest_path.read_text())
+    assert written["run_config"]["condition"] == condition
+
+
+def test_condition_rejects_value_outside_controlled_vocabulary(tmp_path):
+    run_config = _run_config(condition="not_a_real_condition")
+
+    with pytest.raises(RunManifestError):
+        write_manifest(run_config, _summary(), runs_dir=tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "strategy", ["identity", "oracle", "nearest_centroid"],
+)
+def test_refinement_strategy_accepts_each_controlled_vocabulary_value(tmp_path, strategy):
+    run_config = _run_config(refinement_strategy=strategy)
+
+    manifest_path = write_manifest(run_config, _summary(), runs_dir=tmp_path)
+
+    written = json.loads(manifest_path.read_text())
+    assert written["run_config"]["refinement_strategy"] == strategy
+
+
+def test_refinement_strategy_rejects_value_outside_controlled_vocabulary(tmp_path):
+    run_config = _run_config(refinement_strategy="not_a_real_strategy")
+
+    with pytest.raises(RunManifestError):
+        write_manifest(run_config, _summary(), runs_dir=tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_counts_toward_results_defaults_to_false_when_omitted(tmp_path):
+    run_config = _run_config()
+    assert "counts_toward_results" not in run_config
+
+    manifest_path = write_manifest(run_config, _summary(), runs_dir=tmp_path)
+
+    written = json.loads(manifest_path.read_text())
+    assert written["run_config"]["counts_toward_results"] is False
+
+
+def test_counts_toward_results_explicit_true_is_preserved(tmp_path):
+    run_config = _run_config(counts_toward_results=True)
+
+    manifest_path = write_manifest(run_config, _summary(), runs_dir=tmp_path)
+
+    written = json.loads(manifest_path.read_text())
+    assert written["run_config"]["counts_toward_results"] is True
