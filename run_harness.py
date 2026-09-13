@@ -49,6 +49,7 @@ def run_harness(
     summary_path: Union[str, Path],
     clustering_model: Optional[str] = None,
     runs_dir: Optional[Union[str, Path]] = None,
+    notes: str = "",
 ) -> Dict[str, float]:
     der = DiarizationErrorRate(collar=config.der_collar, skip_overlap=config.der_skip_overlap)
     overlap_der = DiarizationErrorRate(
@@ -79,6 +80,7 @@ def run_harness(
             "condition": config.condition,
             "der_collar": config.der_collar,
             "der_skip_overlap": config.der_skip_overlap,
+            "notes": notes,
         }
         write_manifest(run_config, summary, runs_dir)
 
@@ -102,6 +104,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     parser.add_argument("--per-file-csv", default="per_file.csv")
     parser.add_argument("--summary", default="summary.json")
     parser.add_argument("--runs-dir", default="runs")
+    parser.add_argument(
+        "--notes", default="",
+        help="Free-text description of the experiment (e.g. 'oracle segmentation', "
+        "'dbscan clustering', 'random forest overlap detector'), recorded in the run "
+        "manifest and shown in runs/comparison.csv.",
+    )
     parser.add_argument(
         "--device", default=None,
         help="torch device (e.g. cpu, cuda, cuda:0). Default: cuda if available, else cpu.",
@@ -134,6 +142,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         summary_path=args.summary,
         clustering_model=clustering_model,
         runs_dir=args.runs_dir,
+        notes=args.notes,
     )
     print(summary)
     return summary

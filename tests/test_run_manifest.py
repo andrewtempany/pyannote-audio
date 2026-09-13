@@ -41,6 +41,16 @@ def _summary(**overrides):
     return summary
 
 
+def test_manifest_round_trips_notes_in_run_config(tmp_path):
+    run_config = _run_config(notes="oracle segmentation experiment")
+    summary = _summary()
+
+    manifest_path = write_manifest(run_config, summary, runs_dir=tmp_path)
+
+    written = json.loads(manifest_path.read_text())
+    assert written["run_config"]["notes"] == "oracle segmentation experiment"
+
+
 def test_manifest_contains_full_run_config_and_summary(tmp_path):
     run_config = _run_config(clustering_model="agglomerative-v2", extra_pipeline_steps=["multispeaker-flag-v1"])
     summary = _summary()

@@ -48,6 +48,44 @@ def test_aggregate_builds_one_row_per_manifest(tmp_path):
     assert float(rows["run-2"]["counting_mae"]) == 0.7
 
 
+def test_aggregate_includes_notes_column_when_present(tmp_path):
+    runs_dir = tmp_path / "runs"
+    _write_manifest(
+        runs_dir, "run-1",
+        {
+            "pipeline_config_id": "p1", "segmentation_source_id": "baseline",
+            "clustering_model": "dbscan", "notes": "dbscan clustering experiment",
+        },
+        {"der": 0.1},
+    )
+
+    output_csv = tmp_path / "comparison.csv"
+    aggregate_runs(runs_dir=runs_dir, output_csv_path=output_csv)
+
+    with open(output_csv, newline="") as f:
+        rows = {row["run_id"]: row for row in csv.DictReader(f)}
+
+    assert rows["run-1"]["notes"] == "dbscan clustering experiment"
+
+
+def test_aggregate_fills_blank_notes_for_manifest_missing_the_field(tmp_path):
+    runs_dir = tmp_path / "runs"
+    _write_manifest(
+        runs_dir, "run-1",
+        {"pipeline_config_id": "p1", "segmentation_source_id": "baseline", "clustering_model": "cm1"},
+        {"der": 0.1},
+    )
+
+    output_csv = tmp_path / "comparison.csv"
+    aggregate_runs(runs_dir=runs_dir, output_csv_path=output_csv)
+
+    with open(output_csv, newline="") as f:
+        rows = {row["run_id"]: row for row in csv.DictReader(f)}
+
+    assert "notes" in rows["run-1"]
+    assert rows["run-1"]["notes"] == ""
+
+
 def test_aggregate_handles_empty_runs_dir(tmp_path):
     runs_dir = tmp_path / "runs"
     runs_dir.mkdir()

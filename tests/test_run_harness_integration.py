@@ -154,6 +154,23 @@ def test_run_manifest_written_alongside_report(tmp_path, full_pipeline):
     assert manifest["summary"] == json.loads(summary_path.read_text())
 
 
+def test_run_manifest_records_notes(tmp_path, full_pipeline):
+    config = _config(tmp_path)
+    per_file = tmp_path / "per_file.csv"
+    summary_path = tmp_path / "summary.json"
+    runs_dir = tmp_path / "runs"
+
+    run_harness(
+        config, full_pipeline, "test-pipeline", BaselineSegmentation(), per_file, summary_path,
+        clustering_model="agglomerative-v2", runs_dir=runs_dir,
+        notes="oracle segmentation experiment",
+    )
+
+    manifest_files = list(runs_dir.glob("*.json"))
+    manifest = json.loads(manifest_files[0].read_text())
+    assert manifest["run_config"]["notes"] == "oracle segmentation experiment"
+
+
 def test_run_manifest_not_written_on_mid_run_failure(tmp_path, full_pipeline):
     config = _config(tmp_path)
     runs_dir = tmp_path / "runs"

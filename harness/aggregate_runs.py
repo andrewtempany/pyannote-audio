@@ -15,6 +15,7 @@ from typing import Any, Dict, Union
 def _flatten_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
     row = {"run_id": manifest["run_id"], "created_at": manifest["created_at"]}
     row.update(manifest["run_config"])
+    row.setdefault("notes", "")
     row.update(manifest["summary"])
     return row
 
