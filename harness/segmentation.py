@@ -11,7 +11,10 @@ only consults CACHED_SEGMENTATION while `pipeline.training` is True.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, MutableMapping
+from typing import Any, Mapping, MutableMapping
+
+from pyannote.core import Annotation, SlidingWindow
+from pyannote.audio.pipelines.utils.oracle import oracle_segmentation
 
 
 class SegmentationSource(ABC):
@@ -41,23 +44,50 @@ class BaselineSegmentation(SegmentationSource):
 
 
 class OracleSegmentation(SegmentationSource):
-    """Stub. Will build segmentation from the reference annotation using
-    `pyannote.audio.pipelines.utils.oracle.oracle_segmentation(file, window,
-    frames, num_speakers=None)`, which discretises a reference `Annotation`
-    into the `(num_chunks, num_frames, num_speakers)` `SlidingWindowFeature`
-    that `CACHED_SEGMENTATION` expects. Already used for oracle clustering
-    (src/pyannote/audio/pipelines/clustering.py:712-715), so the shape
-    contract is known-good. Wiring it up -- computing the value, setting
-    `file[pipeline.CACHED_SEGMENTATION]`, and engaging the `pipeline.training
-    = True` seam -- is a future ticket; this stub only reserves the shape of
-    the interface."""
+    """Builds ground-truth segmentation from a reference-Annotation lookup
+    (e.g. parsed from an only_words RTTM via `pyannote.database.util.load_rttm`)
+    using `pyannote.audio.pipelines.utils.oracle.oracle_segmentation(file,
+    window, frames, num_speakers=None)`, which discretises a reference
+    `Annotation` into the `(num_chunks, num_frames, num_speakers)`
+    `SlidingWindowFeature` that `CACHED_SEGMENTATION` expects. Already used
+    for oracle clustering (src/pyannote/audio/pipelines/clustering.py:712-715),
+    so the shape contract is known-good.
+
+    `window`/`frames` are derived from the pipeline's own segmentation
+    Inference (`pipeline._segmentation.step`/`.duration`/
+    `.model.receptive_field`), mirroring the exact convention
+    `SpeakerDiarization.apply()` itself uses when calling `oracle_segmentation`
+    for oracle clustering (speaker_diarization.py:663, clustering.py:710-712).
+
+    Setting `file[pipeline.CACHED_SEGMENTATION]` only takes effect if
+    `pipeline.training` is True when the pipeline consults it (see
+    Obsidian-Diarisation/Docs/Segmentation Injection Seam.md) -- this method
+    flips it for the duration of `populate()` and restores it afterwards
+    (even on failure), so a failed/aborted run never leaves the pipeline
+    permanently in training mode."""
 
     id = "oracle"
 
+    def __init__(self, reference_lookup: Mapping[str, Annotation] = None):
+        self._reference_lookup = reference_lookup if reference_lookup is not None else {}
+
     def populate(self, pipeline: Any, file: MutableMapping) -> None:
-        """Not yet implemented. See TICKET-04-segmentation-source-interface.md
-        and pyannote.audio.pipelines.utils.oracle.oracle_segmentation."""
-        raise NotImplementedError(
-            "OracleSegmentation is a stub (TICKET-04); the real implementation "
-            "will build on pyannote.audio.pipelines.utils.oracle.oracle_segmentation"
+        uri = file["uri"]
+        reference = self._reference_lookup[uri]  # KeyError -> fail fast
+
+        window = SlidingWindow(
+            step=pipeline._segmentation.step,
+            duration=pipeline._segmentation.duration,
         )
+        frames = pipeline._segmentation.model.receptive_field
+
+        file["annotation"] = reference
+
+        original_training = pipeline.training
+        pipeline.training = True
+        try:
+            file[pipeline.CACHED_SEGMENTATION] = oracle_segmentation(
+                file, window, frames
+            )
+        finally:
+            pipeline.training = original_training

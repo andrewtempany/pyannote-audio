@@ -178,6 +178,10 @@ def test_runner_uses_segmentation_source_populate_hook(tmp_path):
 
 
 def test_oracle_source_fails_fast_not_silently(tmp_path):
+    """OracleSegmentation is no longer a stub (T3) -- constructed with no
+    reference_lookup, any real uri is simply absent from its (empty) lookup,
+    so populate() still fails fast before the pipeline is ever touched, just
+    with KeyError (missing reference) instead of NotImplementedError (stub)."""
     pipeline = _FakePipeline(Annotation(uri="ES2002a"))
     runner = Runner(
         pipeline,
@@ -186,7 +190,7 @@ def test_oracle_source_fails_fast_not_silently(tmp_path):
         cache_dir=tmp_path,
     )
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(KeyError):
         runner.run({"uri": "ES2002a"})
 
     assert pipeline.calls == 0
