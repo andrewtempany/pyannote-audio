@@ -6,6 +6,8 @@ created: 2026-09-04
 # Reporter
 
 > Part of the [[Evaluation Harness]]. **`harness/reporter.py` is code contributed by this project — not upstream `pyannote-audio`.** It has no direct pyannote-audio dependency itself: it only consumes the shape of dicts/objects produced by [[Scorer]] (a project-contributed module) and standard-library `csv`/`json`.
+>
+> **Extended by [[Oracle Ceiling Metrics]]**, which added a 4th accumulator parameter (`der_overlap_assigned`) and new `FIELDNAMES`/summary fields (DER components, region census). This page describes the original three-accumulator design as it existed before that extension — see [[Oracle Ceiling Metrics]] for the current full signature and output shape.
 
 ## Purpose
 

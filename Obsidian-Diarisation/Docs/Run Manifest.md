@@ -7,6 +7,8 @@ created: 2026-09-04
 
 Part of the [[Evaluation Harness]]. Depends on: [[Harness Reporter]], [[Orchestrator]].
 
+> **Extended by [[Oracle Ceiling Metrics]]**, which added `condition`/`refinement_strategy` controlled vocabularies, `corpus`/`mic_condition`/`git_commit` required fields, and `counts_toward_results` (optional, defaults to `False`). This page describes the original schema (`pipeline_config_id`, `segmentation_source_id`, `clustering_model`, `extra_pipeline_steps`, `split`, `condition` as a free string, `der_collar`, `der_skip_overlap`) as it existed before that extension — see [[Oracle Ceiling Metrics]] for the current required-fields list and controlled vocabularies.
+
 ## What it does
 
 Every harness run can now write a self-contained JSON manifest recording the exact

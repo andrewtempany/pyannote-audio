@@ -6,6 +6,8 @@ created: 2026-09-04
 # Scorer
 
 > Part of the [[Evaluation Harness]]. **`harness/scorer.py` is code contributed by this project — not upstream `pyannote-audio`.** It does no metric math of its own: it is a thin, deliberate wrapper around pre-existing *sister-package* classes, `pyannote.metrics.diarization.DiarizationErrorRate` and `pyannote.metrics.diarization.JaccardErrorRate`, and calls `pyannote.core.Annotation.get_overlap()` / `pyannote.core.Timeline.crop()`. `pyannote.metrics` and `pyannote.core` are dependencies of this repo but live outside it (not under `src/pyannote/audio`), so there is no in-repo file path to cite for them.
+>
+> **Extended by [[Oracle Ceiling Metrics]]**, which added a 4th metric parameter (`der_overlap_assigned`), DER component breakdown, and region census. This page describes the original three-accumulator design (`der`, `overlap_der`, `jer`) as it existed before that extension — see [[Oracle Ceiling Metrics]] for the current full signature and metric set.
 
 ## Purpose
 

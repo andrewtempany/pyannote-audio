@@ -32,10 +32,10 @@ Make a run self-describing and make the ceiling metrics available.
 `--notes` stays as free text. The delta computation in T5 keys on `condition` only, never on notes.
 
 ## Acceptance criteria
-- [x] All new metrics and fields appear in `per_file.csv`, `summary.json`, the run manifest, and `comparison.csv` (unit-verified; see Implementation Notes)
+- [x] All new metrics and fields appear in `per_file.csv`, `summary.json`, the run manifest, and `comparison.csv` (unit-verified and confirmed on a real GPU run, see below)
 - [x] `FIELDNAMES` in `reporter.py:17` updated
-- [ ] A re-run of the existing baseline produces DER unchanged at 17.05% -- **needs a real GPU/AMI run to verify, not yet executed**
-- [ ] Region census on the baseline run is non-zero and the three regions (T∩D, T\D, D\T) are disjoint -- **needs a real GPU/AMI run to verify, not yet executed**
+- [x] A re-run of the existing baseline produces DER unchanged at 17.05% -- confirmed exactly on GPU, see below
+- [x] Region census on the baseline run is non-zero and the three regions (T∩D, T\D, D\T) are disjoint -- confirmed on GPU, see below
 
 ## Out of scope
 Any new metric beyond those listed.
@@ -64,4 +64,9 @@ Blocks [[T3-oracle-segmentation-provider]] and [[T2-post-clustering-refinement-h
   - `run_harness.py` (orchestrator): added a 4th `DiarizationErrorRate` instance for `der_overlap_assigned`, threaded through `score()`/`write_report()`. Wired `refinement_strategy` into the pipeline via T2's `harness.refinement.get_refinement_strategy()`, setting `pipeline.refinement` before constructing the `Runner` (confirmed with T2's implementer that `self.refinement` is a plain settable instance attribute on `SpeakerDiarization`, not init-only). Added `_current_git_commit()` (shells out to `git rev-parse --short HEAD`) for the new `git_commit` manifest field.
   - **Naming collision resolved (confirmed with user):** the existing `--condition` CLI flag means AMI mic condition (`IHM`/`SDM`), which predates T1 and collides with T1's new `condition` controlled vocabulary (`baseline`/`oracle_segmentation`/etc). Kept `--condition` meaning mic condition unchanged (feeds the new `mic_condition` manifest field) and added a new `--run-condition` flag (default `"baseline"`) for T1's `condition` field, to avoid breaking any existing script/doc that already calls `--condition IHM`. Also added `--refinement-strategy`, `--corpus`, and `--counts-toward-results` CLI flags.
   - Verified `tests/test_run_harness_integration.py`'s 9 errors (`FileNotFoundError` for a test audio fixture `trñ00.wav`) are pre-existing and unrelated to this work — reproduced identically via `git stash` against the pre-T1/T2 tree. Not fixed as part of this ticket; likely a checkout/encoding issue with a special-character filename on this machine.
-  - **Not yet verified:** the two acceptance criteria requiring a real AMI/GPU run (exact 17.05% DER reproduction, non-zero disjoint region census on a real run) — these need `run_harness.py` executed against real data, which hasn't happened in this pass. Everything else is unit-test verified.
+- 2026-09-17: Ran `run_harness.py` on GPU (RTX 3060) against the real AMI IHM test split (`--run-condition baseline --refinement-strategy identity --counts-toward-results`), manifest `runs/20260916T213918Z-d3ef4437.json`, `counts_toward_results: true`.
+  - `der = 0.17049287033463784` -- bit-for-bit identical to the pre-T1 baseline manifest (`runs/20260913T031401Z-a9c41646.json`, same value to full float precision). Confirms none of T1's changes to `score()`/`write_report()` altered the actual DER computation.
+  - `der_overlap_system = 0.334`, `der_overlap_assigned = 0.219` -- sits between whole-file `der` (0.170) and `der_overlap_system`, matching the expected shape: assignment error confined to detected-overlap regions is worse than the whole-file average but better than the full reference-overlap number (which also folds in missed-overlap detection).
+  - Region census: `region_t_and_d = 2433.1s`, `region_t_minus_d = 1394.9s`, `region_d_minus_t = 383.1s` -- all non-zero, and their construction (`T.crop(D)`, `T.extrude(D)`, `D.extrude(T)`) guarantees disjointness by definition (verified in the scorer's unit tests already; this run confirms non-triviality on real data, not just toy fixtures).
+  - `runs/comparison.csv` regenerated via `aggregate_runs()`; the new row carries `condition=baseline`, `refinement_strategy=identity`, `mic_condition=IHM`, `corpus=AMI`, `git_commit` matching the implementation commit, and `counts_toward_results=True` -- all fields land correctly.
+  - Both outstanding acceptance criteria are now satisfied. Ticket work is complete; ready to convert to documentation per this repo's ticket-to-doc workflow.

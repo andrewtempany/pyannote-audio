@@ -65,17 +65,22 @@ The orchestrator (`run_harness.py`, see [[Orchestrator]]) owns wiring all of thi
 | Runner | `harness/runner.py` | [[Runner]] |
 | Reporter | `harness/reporter.py` | [[Harness Reporter]] |
 | Orchestrator | `run_harness.py` | [[Orchestrator]] |
+| Run manifest / cross-run comparison | `harness/run_manifest.py`, `harness/aggregate_runs.py` | [[Run Manifest]] |
+| Oracle/ceiling-analysis metrics & manifest fields | `harness/scorer.py`, `harness/reporter.py`, `harness/run_manifest.py` | [[Oracle Ceiling Metrics]] |
+| Post-clustering refinement hook | `harness/refinement.py`, `src/pyannote/audio/pipelines/speaker_diarization.py` | [[Post-Clustering Refinement Hook]] |
 
 ## Metrics produced
 
 For each file, and accumulated corpus-wide:
 
-- **DER (overall)** — `pyannote.metrics.diarization.DiarizationErrorRate(collar=0, skip_overlap=False)`.
-- **Overlap-region DER** (the project's primary metric) — the same DER computation restricted to reference overlap regions intersected with the file's UEM.
+- **DER (overall)** — `pyannote.metrics.diarization.DiarizationErrorRate(collar=0, skip_overlap=False)`, plus its component breakdown (missed detection, false alarm, confusion) as of [[Oracle Ceiling Metrics]].
+- **`der_overlap_system`** (renamed from `overlap_der`) — the same DER computation restricted to reference overlap regions (T) intersected with the file's UEM.
+- **`der_overlap_assigned`** — added by [[Oracle Ceiling Metrics]]: DER restricted to reference overlap **intersected with hypothesis-detected overlap** (T ∩ D), isolating post-clustering assignment error from detection error.
+- **Region census** — added by [[Oracle Ceiling Metrics]]: duration of T∩D, T\D, D\T, per file and corpus-wide.
 - **JER** — `pyannote.metrics.diarization.JaccardErrorRate(collar=0, skip_overlap=False)`.
 - **Speaker counting** — per file: reference speaker count, hypothesis speaker count, absolute difference; corpus-wide: MAE and exact-match %.
 
-DER/overlap-DER/JER are corpus-level ratios, not averages of per-file ratios — see [[Scorer]] for why that matters and how it's enforced.
+DER/der_overlap_system/der_overlap_assigned/JER are corpus-level ratios, not averages of per-file ratios — see [[Scorer]] and [[Oracle Ceiling Metrics]] for why that matters and how it's enforced. Region census durations are the one exception (summed across files, since there's no ratio to preserve) — see [[Oracle Ceiling Metrics]].
 
 ## How to run it
 
@@ -87,10 +92,16 @@ python run_harness.py \
   --cache-dir .harness_cache \
   --dotenv .env \
   --per-file-csv per_file.csv \
-  --summary summary.json
+  --summary summary.json \
+  --run-condition baseline \
+  --refinement-strategy identity \
+  --runs-dir runs \
+  --notes "baseline community-1, no modifications"
 ```
 
-This loads `community-1` via `pyannote.audio.Pipeline.from_pretrained` (needs an accepted HF token, see [[Harness Config]]), runs `BaselineSegmentation`, and writes both output files. Re-running with the same config and cache dir is fast — hypotheses are cached to disk by content hash (see [[Runner]]).
+This loads `community-1` via `pyannote.audio.Pipeline.from_pretrained` (needs an accepted HF token, see [[Harness Config]]), runs `BaselineSegmentation`, applies the post-clustering refinement strategy selected by `--refinement-strategy` (see [[Post-Clustering Refinement Hook]]; default `identity`, a no-op), and writes both output files plus a run manifest. Re-running with the same config and cache dir is fast — hypotheses are cached to disk by content hash (see [[Runner]]).
+
+Note `--condition` (AMI mic condition, e.g. `IHM`/`SDM`) and `--run-condition` (oracle/ceiling-analysis condition, e.g. `baseline`/`oracle_segmentation`) are two different flags — see [[Oracle Ceiling Metrics]] for why.
 
 To call the harness programmatically instead of via the CLI, use `run_harness.run_harness(config, pipeline, pipeline_config_id, segmentation_source, per_file_csv_path, summary_path)` directly — this is the tested surface; the `argparse` CLI wrapper is a thin, untested convenience over it (no credentialed test environment was available at build time).
 
