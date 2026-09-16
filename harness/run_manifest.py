@@ -1,6 +1,9 @@
 """Run manifest: records the exact config a harness run used, alongside the
 existing per-file CSV / summary JSON from harness/reporter.py. See the
-run-manifest ticket in Obsidian-Diarisation/Tickets/Open/run-manifest.md.
+run-manifest ticket in Obsidian-Diarisation/Tickets/Open/run-manifest.md,
+extended by T1 (oracle/ceiling analysis batch: condition/refinement_strategy
+controlled vocabularies, corpus/mic_condition/git_commit required fields,
+counts_toward_results defaulting to False).
 """
 
 from __future__ import annotations
@@ -20,13 +23,33 @@ REQUIRED_RUN_CONFIG_FIELDS = (
     "condition",
     "der_collar",
     "der_skip_overlap",
+    "refinement_strategy",
+    "corpus",
+    "mic_condition",
+    "git_commit",
 )
+
+# T1: condition identifies which of the four oracle/ceiling-analysis
+# conditions a run belongs to; T5's cross-condition deltas key on this field
+# alone, never on --notes, so it must be a closed vocabulary.
+VALID_CONDITIONS = (
+    "baseline",
+    "oracle_segmentation",
+    "oracle_assignment",
+    "nearest_centroid",
+)
+
+# T1: refinement_strategy identifies which post-clustering refinement a run
+# used. "oracle" is accepted here even though T4 (a separate ticket) hasn't
+# implemented that strategy yet, so this vocabulary doesn't need revisiting
+# when T4 lands.
+VALID_REFINEMENT_STRATEGIES = ("identity", "oracle", "nearest_centroid")
 
 
 class RunManifestError(ValueError):
     """Raised when a manifest can't be written: missing required run_config
-    fields, or a run_id collision that would silently overwrite an existing
-    manifest."""
+    fields, an invalid controlled-vocabulary value, or a run_id collision
+    that would silently overwrite an existing manifest."""
 
 
 def _utc_timestamp() -> str:
@@ -50,6 +73,20 @@ def write_manifest(
         raise RunManifestError(
             f"run_config is missing required field(s): {', '.join(missing)}"
         )
+
+    if run_config["condition"] not in VALID_CONDITIONS:
+        raise RunManifestError(
+            f"run_config['condition'] must be one of {VALID_CONDITIONS}, "
+            f"got {run_config['condition']!r}"
+        )
+
+    if run_config["refinement_strategy"] not in VALID_REFINEMENT_STRATEGIES:
+        raise RunManifestError(
+            f"run_config['refinement_strategy'] must be one of "
+            f"{VALID_REFINEMENT_STRATEGIES}, got {run_config['refinement_strategy']!r}"
+        )
+
+    run_config = {**run_config, "counts_toward_results": run_config.get("counts_toward_results", False)}
 
     runs_dir = Path(runs_dir)
     runs_dir.mkdir(parents=True, exist_ok=True)

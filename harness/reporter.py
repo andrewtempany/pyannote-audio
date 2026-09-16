@@ -1,10 +1,14 @@
-"""Reporter: rows -> per-file CSV + corpus summary. See TICKET-07-reporter.md.
+"""Reporter: rows -> per-file CSV + corpus summary. See TICKET-07-reporter.md,
+extended by T1 (oracle/ceiling analysis batch: der components,
+der_overlap_system rename, der_overlap_assigned, region census).
 
-Corpus-level DER/overlap-DER/JER are read from the caller-owned accumulator
-instances (via `abs(metric)`) that TICKET-05's `score()` was also called
-with -- never recomputed by averaging the per-file rows, which the epic
-explicitly forbids (a corpus DER is a ratio over the whole corpus, not a
-mean of per-file ratios).
+Corpus-level DER/der_overlap_system/der_overlap_assigned/JER are read from
+the caller-owned accumulator instances (via `abs(metric)`) that the scorer's
+`score()` was also called with -- never recomputed by averaging the per-file
+rows, which the epic explicitly forbids (a corpus DER is a ratio over the
+whole corpus, not a mean of per-file ratios). Region census durations have no
+such accumulator (they're raw durations, not error rates), so those three
+fields are summed across the per-file rows directly.
 """
 
 from __future__ import annotations
@@ -14,7 +18,24 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
-FIELDNAMES = ["uri", "der", "overlap_der", "jer", "count_ref", "count_hyp", "count_error"]
+FIELDNAMES = [
+    "uri",
+    "der",
+    "der_overlap_system",
+    "jer",
+    "count_ref",
+    "count_hyp",
+    "count_error",
+    "missed_detection",
+    "false_alarm",
+    "confusion",
+    "der_overlap_assigned",
+    "region_t_and_d",
+    "region_t_minus_d",
+    "region_d_minus_t",
+]
+
+_REGION_CENSUS_FIELDS = ("region_t_and_d", "region_t_minus_d", "region_d_minus_t")
 
 
 class ReporterError(ValueError):
@@ -25,6 +46,7 @@ def write_report(
     rows: List[Dict[str, Any]],
     der: Any,
     overlap_der: Any,
+    der_overlap_assigned: Any,
     jer: Any,
     per_file_csv_path: Union[str, Path],
     summary_path: Union[str, Path],
@@ -51,10 +73,15 @@ def write_report(
 
     summary = {
         "der": abs(der),
-        "overlap_der": abs(overlap_der),
+        "der_overlap_system": abs(overlap_der),
+        "der_overlap_assigned": abs(der_overlap_assigned),
         "jer": abs(jer),
         "counting_mae": counting_mae,
         "counting_exact_match_percent": counting_exact_match_percent,
+        **{
+            field: sum(row[field] for row in rows)
+            for field in _REGION_CENSUS_FIELDS
+        },
     }
 
     with open(summary_path, "w") as f:

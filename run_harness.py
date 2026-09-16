@@ -1,16 +1,18 @@
 """Orchestrator: adapter -> runner -> scorer -> reporter. See
-TICKET-08-orchestrator-integration.md.
+TICKET-08-orchestrator-integration.md, extended by T1/T2 (oracle/ceiling
+analysis batch).
 
-Constructs the three corpus-level metric accumulators (der, overlap_der,
-jer) exactly once per run and threads them through every score() call, per
-TICKET-05's resolved contract. Writes both output files only after every
-file has been scored -- a failure partway through (e.g. OracleSegmentation's
-still-stubbed NotImplementedError) never leaves a partial/misleading CSV or
-summary behind.
+Constructs the four corpus-level metric accumulators (der, overlap_der,
+der_overlap_assigned, jer) exactly once per run and threads them through
+every score() call, per the scorer's resolved contract. Writes both output
+files only after every file has been scored -- a failure partway through
+(e.g. OracleSegmentation's still-stubbed NotImplementedError) never leaves a
+partial/misleading CSV or summary behind.
 """
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Union
 
@@ -19,10 +21,19 @@ from pyannote.metrics.diarization import DiarizationErrorRate, JaccardErrorRate
 
 from harness.config import HarnessConfig
 from harness.datasets import AMIDatasetAdapter
+from harness.refinement import get_refinement_strategy
 from harness.reporter import write_report
 from harness.run_manifest import write_manifest
 from harness.runner import Runner
 from harness.scorer import score
+
+
+def _current_git_commit() -> str:
+    """Short git commit hash of the working tree HEAD, recorded on every
+    manifest so a run's exact code state is reconstructable later."""
+    return subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent
+    ).decode().strip()
 
 
 def _resolve_device(requested: Optional[str]) -> torch.device:
@@ -50,12 +61,21 @@ def run_harness(
     clustering_model: Optional[str] = None,
     runs_dir: Optional[Union[str, Path]] = None,
     notes: str = "",
+    run_condition: str = "baseline",
+    refinement_strategy: str = "identity",
+    corpus: str = "AMI",
+    counts_toward_results: bool = False,
 ) -> Dict[str, float]:
     der = DiarizationErrorRate(collar=config.der_collar, skip_overlap=config.der_skip_overlap)
     overlap_der = DiarizationErrorRate(
         collar=config.der_collar, skip_overlap=config.der_skip_overlap
     )
+    der_overlap_assigned = DiarizationErrorRate(
+        collar=config.der_collar, skip_overlap=config.der_skip_overlap
+    )
     jer = JaccardErrorRate(collar=config.der_collar, skip_overlap=config.der_skip_overlap)
+
+    pipeline.refinement = get_refinement_strategy(refinement_strategy)
 
     runner = Runner(pipeline, pipeline_config_id, segmentation_source, config.cache_dir)
     adapter = AMIDatasetAdapter(config)
@@ -64,11 +84,13 @@ def run_harness(
     for uri, reference, uem in adapter:
         file = {"uri": uri, "audio": str(_audio_path(config, uri))}
         hypothesis = runner.run(file)
-        row = score(reference, hypothesis, uem, der, overlap_der, jer)
+        row = score(reference, hypothesis, uem, der, overlap_der, der_overlap_assigned, jer)
         row["uri"] = uri
         rows.append(row)
 
-    summary = write_report(rows, der, overlap_der, jer, per_file_csv_path, summary_path)
+    summary = write_report(
+        rows, der, overlap_der, der_overlap_assigned, jer, per_file_csv_path, summary_path
+    )
 
     if runs_dir is not None:
         run_config = {
@@ -77,10 +99,15 @@ def run_harness(
             "clustering_model": clustering_model,
             "extra_pipeline_steps": [],
             "split": config.split,
-            "condition": config.condition,
+            "condition": run_condition,
             "der_collar": config.der_collar,
             "der_skip_overlap": config.der_skip_overlap,
             "notes": notes,
+            "refinement_strategy": refinement_strategy,
+            "corpus": corpus,
+            "mic_condition": config.condition,
+            "git_commit": _current_git_commit(),
+            "counts_toward_results": counts_toward_results,
         }
         write_manifest(run_config, summary, runs_dir)
 
@@ -114,6 +141,24 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         "--device", default=None,
         help="torch device (e.g. cpu, cuda, cuda:0). Default: cuda if available, else cpu.",
     )
+    parser.add_argument(
+        "--run-condition", default="baseline",
+        choices=["baseline", "oracle_segmentation", "oracle_assignment", "nearest_centroid"],
+        help="Which oracle/ceiling-analysis condition this run belongs to (not to be "
+        "confused with --condition, the AMI mic condition). Recorded in the manifest's "
+        "'condition' field; T5's cross-condition deltas key on this.",
+    )
+    parser.add_argument(
+        "--refinement-strategy", default="identity",
+        choices=["identity", "oracle", "nearest_centroid"],
+        help="Post-clustering refinement strategy (see harness/refinement.py).",
+    )
+    parser.add_argument("--corpus", default="AMI")
+    parser.add_argument(
+        "--counts-toward-results", action="store_true",
+        help="Mark this run as counting toward the oracle/ceiling-analysis results table "
+        "(T5). Defaults to False for exploratory/debugging runs.",
+    )
     args = parser.parse_args(argv)
 
     config = HarnessConfig.load(
@@ -143,6 +188,10 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         clustering_model=clustering_model,
         runs_dir=args.runs_dir,
         notes=args.notes,
+        run_condition=args.run_condition,
+        refinement_strategy=args.refinement_strategy,
+        corpus=args.corpus,
+        counts_toward_results=args.counts_toward_results,
     )
     print(summary)
     return summary
