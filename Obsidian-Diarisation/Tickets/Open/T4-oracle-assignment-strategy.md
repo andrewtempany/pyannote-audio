@@ -1,5 +1,5 @@
 ---
-status: not-started
+status: in-progress
 created: 2026-09-13
 ---
 
@@ -40,3 +40,12 @@ Blocked on [[T2-post-clustering-refinement-hook]]. Blocks [[T5-cross-condition-d
 ## Implementation Notes
 
 (append here as work happens — decisions, rejected alternatives, gotchas, key files/functions touched)
+
+- **Ticket has no "Tests first" section** (unlike some others in this batch). Proceeding by deriving tests from the Method/Config/Acceptance-criteria sections directly rather than stopping to ask, since this is a background/unattended run — documenting that choice here per the tdd-ticket skill's guidance to flag any deviation.
+- **Signature problem discovered while reading T2's hook.** The fixed refinement interface is `strategy(embeddings, hard_clusters, soft_clusters, centroids, segmentations) -> hard_clusters` — there is no reference/ground-truth parameter, and no per-file hook at all: `run_harness.py` currently does `pipeline.refinement = get_refinement_strategy(name)` **once**, before the per-file loop. Oracle assignment fundamentally needs the reference `Annotation` for the file currently being scored, which isn't available at that point.
+  - Rejected: smuggling reference into `segmentations` or a global/module-level variable — fragile, breaks the "operates on pairs and what clustering produced" contract T2 documents.
+  - Chosen: `harness/refinement.py` exposes a **factory**, `make_oracle_strategy(reference, oracle_scope) -> Callable`, matching the normal 5-arg interface via closure. `run_harness.py`'s per-file loop, only when `refinement_strategy == "oracle"`, sets `pipeline.refinement = make_oracle_strategy(reference, oracle_scope)` immediately before `runner.run(file)` (identity/nearest_centroid runs are unaffected — `pipeline.refinement` is still set once, outside the loop, for those). This is a small, additive change to `run_harness.py`'s loop body, not a change to the T2 interface itself or to `speaker_diarization.py`.
+- **Optimal hyp-cluster <-> reference-speaker mapping**: reused `pyannote.metrics.diarization.DiarizationErrorRate().optimal_mapping(reference, hypothesis, uem=None)` (returns `dict[hyp_label -> ref_label]`, computed by total temporal overlap via Hungarian matching) rather than hand-rolling an overlap matrix + assignment. Requires materializing `hard_clusters`+`segmentations` into a hypothesis `Annotation` first (helper `_reconstruct_hypothesis`), since that's what `optimal_mapping` takes.
+- **Pair support**: helper `_pair_support(hard_clusters, segmentations)` builds a `Timeline` per `(chunk, local_speaker)` pair from that pair's active frames in `segmentations.data[chunk, :, local_speaker]`, mapped to real time via `segmentations.sliding_window[chunk]`.
+- **`overlap_degraded` scope semantics** (not spelled out precisely in the ticket beyond "support is predominantly coincident with another speaker"): a pair is in-scope when, within its own temporal support, the reference annotation shows >=2 simultaneous speakers for more than half of that support's duration (i.e. the pair's audio is mostly overlapping speech in the ground truth). This directly matches "support predominantly coincident with another speaker" and is checkable purely from `reference.get_overlap()` cropped to the pair's support.
+- **Never invents a missing cluster**: reverse mapping is built as `ref_speaker -> hyp_cluster` from `optimal_mapping`'s `hyp_cluster -> ref_speaker` dict. If the dominant reference speaker for a pair's support isn't a value in that dict (i.e. no hypothesis cluster maps to it), the pair is left unchanged (method step 5). Also: mapping only ever assigns labels that appeared in `hard_clusters` to begin with, since `optimal_mapping`'s hypothesis side is built only from clusters actually present.
