@@ -172,10 +172,15 @@ def test_run_manifest_records_notes(tmp_path, full_pipeline):
 
 
 def test_run_manifest_not_written_on_mid_run_failure(tmp_path, full_pipeline):
+    """OracleSegmentation is no longer a stub (T3): constructed here with no
+    reference_lookup, so any real uri is simply missing from its (empty)
+    lookup and populate() fails fast with KeyError instead of the old stub's
+    NotImplementedError -- the mid-run-failure behavior itself (no manifest
+    written) is unchanged."""
     config = _config(tmp_path)
     runs_dir = tmp_path / "runs"
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(KeyError):
         run_harness(
             config, full_pipeline, "test-pipeline", OracleSegmentation(),
             tmp_path / "per_file.csv", tmp_path / "summary.json",
@@ -196,7 +201,10 @@ def test_segmentation_source_is_swappable_via_config(tmp_path, full_pipeline):
     oracle_per_file = tmp_path / "oracle_per_file.csv"
     oracle_summary = tmp_path / "oracle_summary.json"
 
-    with pytest.raises(NotImplementedError):
+    # OracleSegmentation() with no reference_lookup: any real uri is missing
+    # from its (empty) lookup, so this still fails fast (KeyError, not the
+    # old stub's NotImplementedError -- see T3).
+    with pytest.raises(KeyError):
         run_harness(
             config, full_pipeline, "test-pipeline", OracleSegmentation(),
             oracle_per_file, oracle_summary,
@@ -204,3 +212,52 @@ def test_segmentation_source_is_swappable_via_config(tmp_path, full_pipeline):
 
     assert not oracle_per_file.exists()
     assert not oracle_summary.exists()
+
+
+def test_oracle_segmentation_run_completes_scores_and_tagged_in_manifest(tmp_path, full_pipeline):
+    """T3 acceptance criterion: a run completes, scores, and appears in
+    comparison.csv as oracle_segmentation. Builds OracleSegmentation from the
+    only_words RTTM fixture (tests/fixtures/ami/basic/IHM/test.only_words.rttm)
+    and drives a real (offline, tiny-model) end-to-end run through
+    run_harness(), the same entry point run_harness.py's CLI uses -- not an
+    ad hoc script. comparison.csv itself is produced by
+    harness/aggregate_runs.py from the manifests this writes; the
+    'oracle_segmentation' tag comes from run_condition, a distinct manifest
+    field from segmentation_source_id (kept as 'oracle' for cache-key
+    purposes per the Segmentation Source Interface doc)."""
+    from pyannote.database.util import load_rttm
+
+    from harness.aggregate_runs import aggregate_runs
+
+    config = _config(tmp_path)
+    only_words_rttm = FIXTURES / "IHM" / "test.only_words.rttm"
+    reference_lookup = load_rttm(str(only_words_rttm))
+
+    per_file = tmp_path / "oracle_per_file.csv"
+    summary_path = tmp_path / "oracle_summary.json"
+    runs_dir = tmp_path / "runs"
+
+    summary = run_harness(
+        config, full_pipeline, "test-pipeline",
+        OracleSegmentation(reference_lookup=reference_lookup),
+        per_file, summary_path,
+        clustering_model="agglomerative-v2", runs_dir=runs_dir,
+        run_condition="oracle_segmentation",
+    )
+
+    assert per_file.exists() and per_file.stat().st_size > 0
+    assert "der" in summary
+
+    manifest_files = list(runs_dir.glob("*.json"))
+    assert len(manifest_files) == 1
+    manifest = json.loads(manifest_files[0].read_text())
+    assert manifest["run_config"]["segmentation_source_id"] == "oracle"
+    assert manifest["run_config"]["condition"] == "oracle_segmentation"
+
+    comparison_csv = tmp_path / "comparison.csv"
+    aggregate_runs(runs_dir, comparison_csv)
+
+    with open(comparison_csv, newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 1
+    assert rows[0]["condition"] == "oracle_segmentation"

@@ -97,3 +97,60 @@ directly from a small synthetic RTTM fixture instead.
   `oracle_segmentation` via the existing `run_condition` manifest field (not
   `segmentation_source.id`, which stays `"oracle"` for cache-key purposes per
   [[Segmentation Source Interface]]).
+
+### Gotcha: `OracleSegmentation()` no-arg construction
+
+`reference_lookup` defaults to `{}` rather than being a required constructor arg.
+Reason: pre-existing tests in `tests/test_runner.py` and
+`tests/test_run_harness_integration.py` (from earlier, already-completed tickets)
+construct `OracleSegmentation()` with no arguments to exercise its fail-fast
+behavior against the old stub's `NotImplementedError`. Making `reference_lookup`
+required would have broken those call sites outright. Instead, an empty-dict default
+still fails fast for any real uri (now `KeyError` from the empty lookup, instead of
+the old stub's `NotImplementedError`) — same fail-fast contract, more specific
+exception. Updated the three pre-existing assertions
+(`test_runner.py::test_oracle_source_fails_fast_not_silently`,
+`test_run_harness_integration.py::test_run_manifest_not_written_on_mid_run_failure`
+and `::test_segmentation_source_is_swappable_via_config`) from
+`pytest.raises(NotImplementedError)` to `pytest.raises(KeyError)`, each with a
+comment explaining why — not silently loosened, the old assertions were testing the
+literal stub behavior which no longer exists.
+
+### Gotcha: pre-existing broken `full_pipeline`/`pipeline` fixtures on this machine
+
+Every test depending on `tests/conftest.py`'s `pipeline` or `full_pipeline` fixtures
+(session-scoped, built via the `Debug.SpeakerDiarization.Debug` protocol) fails in
+this environment with `FileNotFoundError: Could not find file "trñ00"` —
+confirmed pre-existing (reproduces identically on `git stash`, i.e. before any T3
+change) and confirmed **not** a text-encoding mismatch (the `.lst` file's bytes and
+the actual filename's bytes are both identical UTF-8 `\xc3\xb1` for `ñ`) — some
+deeper Windows filesystem/path-handling interaction with `pyannote.database`'s
+`FileFinder`, out of scope to fix here (shared conftest infra also relied on by the
+concurrently-running T4 ticket). Confirmed the concurrent T4 agent hit the exact
+same issue independently (see `tests/test_run_harness_oracle_wiring.py`'s header)
+and used the same workaround: a unit-level test with `Runner`/`AMIDatasetAdapter`
+mocked out, real `run_harness()`/`aggregate_runs()` under test. Followed the same
+pattern here: `tests/test_run_harness_oracle_segmentation.py` proves the third
+acceptance criterion (run completes, scores, appears in `comparison.csv` as
+`oracle_segmentation`) without needing the broken fixture. A true end-to-end test
+using the real fixture pipeline was also written
+(`tests/test_run_harness_integration.py::test_oracle_segmentation_run_completes_scores_and_tagged_in_manifest`,
+plus a new `tests/fixtures/ami/basic/IHM/test.only_words.rttm` fixture) for whoever
+fixes the environment issue later — it currently errors identically to every other
+`full_pipeline`-dependent test in that file, not from anything T3-specific.
+
+### Final status
+
+All three acceptance criteria have a passing test:
+1. Interface contract — `tests/test_segmentation.py::test_interface_contract`.
+2. Fixture RTTM matches produced segmentation —
+   `tests/test_segmentation.py::test_oracle_populate_sets_cached_segmentation_matching_fixture_rttm`.
+3. Run completes/scores/appears in `comparison.csv` as `oracle_segmentation` —
+   `tests/test_run_harness_oracle_segmentation.py::test_oracle_segmentation_run_appears_in_comparison_csv`
+   (unit-level, mocked Runner/adapter) plus a real end-to-end counterpart in
+   `test_run_harness_integration.py` that's blocked only by the pre-existing
+   environment fixture bug described above, not by T3 code.
+
+`only_words` RTTM sourcing for a real AMI run (as opposed to test fixtures) is
+noted above as a follow-on — no such file exists yet in the converted AMI data
+directory.

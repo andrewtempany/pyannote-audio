@@ -21,7 +21,7 @@ from pyannote.metrics.diarization import DiarizationErrorRate, JaccardErrorRate
 
 from harness.config import HarnessConfig
 from harness.datasets import AMIDatasetAdapter
-from harness.refinement import get_refinement_strategy
+from harness.refinement import get_refinement_strategy, make_oracle_strategy
 from harness.reporter import write_report
 from harness.run_manifest import write_manifest
 from harness.runner import Runner
@@ -63,6 +63,7 @@ def run_harness(
     notes: str = "",
     run_condition: str = "baseline",
     refinement_strategy: str = "identity",
+    oracle_scope: Optional[str] = None,
     corpus: str = "AMI",
     counts_toward_results: bool = False,
 ) -> Dict[str, float]:
@@ -75,13 +76,24 @@ def run_harness(
     )
     jer = JaccardErrorRate(collar=config.der_collar, skip_overlap=config.der_skip_overlap)
 
-    pipeline.refinement = get_refinement_strategy(refinement_strategy)
+    # "oracle" needs the current file's own reference Annotation, which the
+    # fixed 5-arg refinement interface (embeddings, hard_clusters,
+    # soft_clusters, centroids, segmentations) has no slot for -- so unlike
+    # identity/nearest_centroid (set once, shared across every file),
+    # oracle's pipeline.refinement is rebuilt per file inside the loop
+    # below, right before that file is run. See T4's Implementation Notes.
+    if refinement_strategy != "oracle":
+        pipeline.refinement = get_refinement_strategy(refinement_strategy)
 
     runner = Runner(pipeline, pipeline_config_id, segmentation_source, config.cache_dir)
     adapter = AMIDatasetAdapter(config)
 
     rows = []
     for uri, reference, uem in adapter:
+        if refinement_strategy == "oracle":
+            pipeline.refinement = make_oracle_strategy(
+                reference, oracle_scope=oracle_scope or "all_pairs"
+            )
         file = {"uri": uri, "audio": str(_audio_path(config, uri))}
         hypothesis = runner.run(file)
         row = score(reference, hypothesis, uem, der, overlap_der, der_overlap_assigned, jer)
@@ -104,6 +116,7 @@ def run_harness(
             "der_skip_overlap": config.der_skip_overlap,
             "notes": notes,
             "refinement_strategy": refinement_strategy,
+            "oracle_scope": oracle_scope,
             "corpus": corpus,
             "mic_condition": config.condition,
             "git_commit": _current_git_commit(),
@@ -120,7 +133,9 @@ from pyannote.audio import Pipeline
 def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     import argparse
 
-    from harness.segmentation import BaselineSegmentation
+    from pyannote.database.util import load_rttm
+
+    from harness.segmentation import BaselineSegmentation, OracleSegmentation
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", required=True)
@@ -153,6 +168,20 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         choices=["identity", "oracle", "nearest_centroid"],
         help="Post-clustering refinement strategy (see harness/refinement.py).",
     )
+    parser.add_argument(
+        "--oracle-scope", default="all_pairs",
+        choices=["all_pairs", "overlap_degraded"],
+        help="Scope of pairs the 'oracle' refinement strategy refines (T4). "
+        "'overlap_degraded' (primary): only pairs whose support is predominantly "
+        "coincident with another speaker. 'all_pairs' (secondary): every pair, the "
+        "full post-clustering ceiling. Ignored unless --refinement-strategy oracle.",
+    )
+    parser.add_argument(
+        "--oracle-rttm", default=None,
+        help="Path to a reference RTTM (e.g. an only_words RTTM) used to build ground-truth "
+        "segmentation when --run-condition oracle_segmentation is selected (T3). Required "
+        "in that case; ignored otherwise.",
+    )
     parser.add_argument("--corpus", default="AMI")
     parser.add_argument(
         "--counts-toward-results", action="store_true",
@@ -178,11 +207,20 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     # future ticket implements clustering-model selection.
     clustering_model = "pyannote-default"
 
+    if args.run_condition == "oracle_segmentation":
+        if not args.oracle_rttm:
+            parser.error("--run-condition oracle_segmentation requires --oracle-rttm")
+        segmentation_source = OracleSegmentation(
+            reference_lookup=load_rttm(args.oracle_rttm)
+        )
+    else:
+        segmentation_source = BaselineSegmentation()
+
     summary = run_harness(
         config,
         pipeline,
         pipeline_config_id=checkpoint,
-        segmentation_source=BaselineSegmentation(),
+        segmentation_source=segmentation_source,
         per_file_csv_path=args.per_file_csv,
         summary_path=args.summary,
         clustering_model=clustering_model,
@@ -190,6 +228,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         notes=args.notes,
         run_condition=args.run_condition,
         refinement_strategy=args.refinement_strategy,
+        oracle_scope=args.oracle_scope,
         corpus=args.corpus,
         counts_toward_results=args.counts_toward_results,
     )
