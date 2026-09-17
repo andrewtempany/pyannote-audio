@@ -197,6 +197,147 @@ def test_oracle_source_fails_fast_not_silently(tmp_path):
     assert not runner.cache_path("ES2002a").exists()
 
 
+def test_cache_key_differs_by_refinement_strategy(tmp_path):
+    """Regression test: two runs that differ only in refinement strategy
+    (e.g. identity vs oracle) must not collide on the same cache key --
+    otherwise a second experiment silently reuses the first experiment's
+    cached hypothesis instead of computing its own."""
+    pipeline = _FakePipeline(Annotation(uri="ES2002a"))
+
+    runner_identity = Runner(
+        pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="identity",
+    )
+    runner_oracle = Runner(
+        pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="oracle:all_pairs",
+    )
+
+    assert runner_identity.cache_key("ES2002a") != runner_oracle.cache_key("ES2002a")
+
+
+def test_cache_key_differs_by_oracle_scope(tmp_path):
+    """Regression test: the two oracle scopes (all_pairs vs overlap_degraded)
+    must not collide with each other either -- not just with identity."""
+    pipeline = _FakePipeline(Annotation(uri="ES2002a"))
+
+    runner_all_pairs = Runner(
+        pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="oracle:all_pairs",
+    )
+    runner_overlap_degraded = Runner(
+        pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="oracle:overlap_degraded",
+    )
+
+    assert (
+        runner_all_pairs.cache_key("ES2002a")
+        != runner_overlap_degraded.cache_key("ES2002a")
+    )
+    assert (
+        runner_all_pairs.cache_key("ES2002a")
+        != runner_all_pairs.cache_key("ES2002b")
+    )
+
+
+def test_cache_key_same_refinement_id_produces_same_key(tmp_path):
+    """Repeating the *same* experiment (same config, same refinement_id)
+    must still hit cache -- the fix must not break the whole point of
+    caching by making every run unique."""
+    pipeline = _FakePipeline(Annotation(uri="ES2002a"))
+
+    runner_a = Runner(
+        pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="oracle:all_pairs",
+    )
+    runner_b = Runner(
+        pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="oracle:all_pairs",
+    )
+
+    assert runner_a.cache_key("ES2002a") == runner_b.cache_key("ES2002a")
+
+
+def test_cache_hit_does_not_bleed_across_refinement_strategies(tmp_path):
+    """Reproduces the real bug in miniature: pre-populate the cache under
+    one refinement strategy's key, then run with a *different* refinement
+    strategy for the same uri/config -- the second run must compute fresh,
+    not silently return the first strategy's stale cached hypothesis."""
+    stale_hypothesis = Annotation(uri="ES2002a")
+    stale_hypothesis[Segment(0, 1)] = "STALE"
+
+    fresh_hypothesis = Annotation(uri="ES2002a")
+    fresh_hypothesis[Segment(0, 1)] = "FRESH"
+
+    runner_identity = Runner(
+        _FakePipeline(stale_hypothesis),
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="identity",
+    )
+    runner_identity.run({"uri": "ES2002a"})
+    assert runner_identity.cache_path("ES2002a").exists()
+
+    fresh_pipeline = _FakePipeline(fresh_hypothesis)
+    runner_oracle = Runner(
+        fresh_pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="oracle:all_pairs",
+    )
+
+    result = runner_oracle.run({"uri": "ES2002a"})
+
+    assert fresh_pipeline.calls == 1  # pipeline was actually invoked, not skipped
+    assert _tracks(result) == _tracks(fresh_hypothesis)
+    assert _tracks(result) != _tracks(stale_hypothesis)
+
+
+def test_cache_hit_still_skips_pipeline_for_genuine_repeat_with_refinement_id(tmp_path):
+    """Same as test_cache_hit_skips_pipeline_and_loads_rttm, but with
+    refinement_id set -- confirms the fix doesn't regress the basic
+    caching behavior once refinement_id is part of the key."""
+    hypothesis = Annotation(uri="ES2002a")
+    hypothesis[Segment(0, 1)] = "A"
+    hypothesis[Segment(1, 2)] = "B"
+    pipeline = _FakePipeline(hypothesis)
+    runner = Runner(
+        pipeline,
+        pipeline_config_id="config1",
+        segmentation_source=BaselineSegmentation(),
+        cache_dir=tmp_path,
+        refinement_id="oracle:all_pairs",
+    )
+
+    runner.run({"uri": "ES2002a"})
+    assert pipeline.calls == 1
+
+    result = runner.run({"uri": "ES2002a"})
+
+    assert pipeline.calls == 1  # unchanged -- not invoked a second time
+    assert _tracks(result) == _tracks(hypothesis)
+
+
 @pytest.mark.integration
 def test_runner_real_pipeline_one_file(tmp_path):
     token = os.environ.get("HF_TOKEN")

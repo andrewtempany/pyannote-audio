@@ -26,14 +26,19 @@ class Runner:
         pipeline_config_id: str,
         segmentation_source: Any,
         cache_dir: Union[str, Path],
+        refinement_id: str = "identity",
     ):
         self._pipeline = pipeline
         self._pipeline_config_id = pipeline_config_id
         self._segmentation_source = segmentation_source
         self._cache_dir = Path(cache_dir)
+        self._refinement_id = refinement_id
 
     def cache_key(self, uri: str) -> str:
-        raw = f"{self._pipeline_config_id}|{self._segmentation_source.id}|{uri}"
+        raw = (
+            f"{self._pipeline_config_id}|{self._segmentation_source.id}|"
+            f"{self._refinement_id}|{uri}"
+        )
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def cache_path(self, uri: str) -> Path:

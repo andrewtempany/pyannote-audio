@@ -13,6 +13,7 @@ partial/misleading CSV or summary behind.
 from __future__ import annotations
 
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Union
 
@@ -85,9 +86,21 @@ def run_harness(
     if refinement_strategy != "oracle":
         pipeline.refinement = get_refinement_strategy(refinement_strategy)
 
-    runner = Runner(pipeline, pipeline_config_id, segmentation_source, config.cache_dir)
+    refinement_id = (
+        f"{refinement_strategy}:{oracle_scope or 'all_pairs'}"
+        if refinement_strategy == "oracle"
+        else refinement_strategy
+    )
+    runner = Runner(
+        pipeline,
+        pipeline_config_id,
+        segmentation_source,
+        config.cache_dir,
+        refinement_id=refinement_id,
+    )
     adapter = AMIDatasetAdapter(config)
 
+    run_started_at = time.monotonic()
     rows = []
     for uri, reference, uem in adapter:
         if refinement_strategy == "oracle":
@@ -99,6 +112,8 @@ def run_harness(
         row = score(reference, hypothesis, uem, der, overlap_der, der_overlap_assigned, jer)
         row["uri"] = uri
         rows.append(row)
+
+    duration_seconds = time.monotonic() - run_started_at
 
     summary = write_report(
         rows, der, overlap_der, der_overlap_assigned, jer, per_file_csv_path, summary_path
@@ -122,7 +137,7 @@ def run_harness(
             "git_commit": _current_git_commit(),
             "counts_toward_results": counts_toward_results,
         }
-        write_manifest(run_config, summary, runs_dir)
+        write_manifest(run_config, summary, runs_dir, duration_seconds=duration_seconds)
 
     return summary
 
