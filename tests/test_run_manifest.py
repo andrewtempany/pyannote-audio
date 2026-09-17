@@ -49,6 +49,24 @@ def _summary(**overrides):
     return summary
 
 
+def test_manifest_records_duration_seconds_when_given(tmp_path):
+    manifest_path = write_manifest(
+        _run_config(), _summary(), runs_dir=tmp_path, duration_seconds=842.5
+    )
+
+    written = json.loads(manifest_path.read_text())
+    assert written["duration_seconds"] == 842.5
+
+
+def test_manifest_duration_seconds_is_null_when_omitted(tmp_path):
+    """Old callers that don't pass duration_seconds still work -- the field
+    is present but null, not a KeyError waiting to happen for readers."""
+    manifest_path = write_manifest(_run_config(), _summary(), runs_dir=tmp_path)
+
+    written = json.loads(manifest_path.read_text())
+    assert written["duration_seconds"] is None
+
+
 def test_manifest_round_trips_notes_in_run_config(tmp_path):
     run_config = _run_config(notes="oracle segmentation experiment")
     summary = _summary()

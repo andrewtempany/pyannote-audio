@@ -67,6 +67,7 @@ def write_manifest(
     run_config: Dict[str, Any],
     summary: Dict[str, Any],
     runs_dir: Union[str, Path],
+    duration_seconds: Any = None,
 ) -> Path:
     missing = [field for field in REQUIRED_RUN_CONFIG_FIELDS if field not in run_config]
     if missing:
@@ -106,6 +107,7 @@ def write_manifest(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "run_config": run_config,
         "summary": summary,
+        "duration_seconds": duration_seconds,
     }
 
     manifest_path.write_text(json.dumps(manifest, indent=2))
