@@ -8,6 +8,8 @@ created: 2026-09-04
 Part of the [[Evaluation Harness]]. Depends on: [[Harness Reporter]], [[Orchestrator]].
 
 > **Extended by [[Oracle Ceiling Metrics]]**, which added `condition`/`refinement_strategy` controlled vocabularies, `corpus`/`mic_condition`/`git_commit` required fields, and `counts_toward_results` (optional, defaults to `False`). This page describes the original schema (`pipeline_config_id`, `segmentation_source_id`, `clustering_model`, `extra_pipeline_steps`, `split`, `condition` as a free string, `der_collar`, `der_skip_overlap`) as it existed before that extension — see [[Oracle Ceiling Metrics]] for the current required-fields list and controlled vocabularies.
+>
+> **Further extended by [[Cross-Condition Deltas]]**, which adds `build_cross_condition_table()` to `harness/aggregate_runs.py` — groups the CSV this page's `aggregate_runs()` produces by experimental condition and computes the batch's ceiling-analysis budget deltas, rather than requiring them to be read off the raw comparison table by hand.
 
 ## What it does
 
