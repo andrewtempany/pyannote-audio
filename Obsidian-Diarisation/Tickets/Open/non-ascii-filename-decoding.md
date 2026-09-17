@@ -20,7 +20,7 @@ result on this machine.
 FileNotFoundError: Could not find file "trñ00"
 ```
 
-## Root cause (confirmed during [[T1-harness-reporting-and-manifest-schema]])
+## Root cause (confirmed during [[Oracle Ceiling Metrics]])
 
 `tests/data/debug.train.lst` intentionally contains a non-ASCII filename (`trñ00`, added
 upstream in commit `b41b176e`, "fix: fix support for non-ASCII characters") to test

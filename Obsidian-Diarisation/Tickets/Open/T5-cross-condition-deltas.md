@@ -5,7 +5,7 @@ created: 2026-09-13
 
 # T5: Cross-condition deltas in aggregate_runs.py
 
-Part of the oracle/ceiling analysis batch (see [[T1-harness-reporting-and-manifest-schema]], [[T2-post-clustering-refinement-hook]], [[T3-oracle-segmentation-provider]], [[T4-oracle-assignment-strategy]]). Final ticket in the batch — needs all four conditions scored (baseline, oracle segmentation, oracle assignment, nearest centroid).
+Part of the oracle/ceiling analysis batch (see [[Oracle Ceiling Metrics]], [[Post-Clustering Refinement Hook]], [[Oracle Segmentation Provider]], [[Oracle Assignment Strategy]]). Final ticket in the batch — needs all four conditions scored (baseline, oracle segmentation, oracle assignment, nearest centroid).
 
 ## Goal
 
@@ -96,7 +96,7 @@ inside T5 itself.
 Commentary or conclusions. This ticket ends at the table; interpretation and the go/no-go decision are written by Andrew, not the agent.
 
 ## Dependencies
-Needs [[T1-harness-reporting-and-manifest-schema]] (fields to group/filter on), [[T3-oracle-segmentation-provider]], and [[T4-oracle-assignment-strategy]] all scored.
+Needs [[Oracle Ceiling Metrics]] (fields to group/filter on), [[Oracle Segmentation Provider]], and [[Oracle Assignment Strategy]] all scored.
 
 ## Implementation Notes
 

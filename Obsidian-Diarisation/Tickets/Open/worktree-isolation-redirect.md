@@ -22,8 +22,8 @@ checkout discovered above it), so commands run there would write outside the wor
 Remove the redirect, restore the worktree's own .git, or recreate the worktree, then retry.
 ```
 
-Reproduced when launching two concurrent agents (for [[T3-oracle-segmentation-provider]]
-and [[T4-oracle-assignment-strategy]]) — both failed identically.
+Reproduced when launching two concurrent agents (for [[Oracle Segmentation Provider]]
+and [[Oracle Assignment Strategy]]) — both failed identically.
 
 ## What's been checked
 

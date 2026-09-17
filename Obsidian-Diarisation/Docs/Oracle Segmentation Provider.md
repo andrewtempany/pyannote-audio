@@ -5,7 +5,7 @@ created: 2026-09-13
 
 # Oracle Segmentation Provider
 
-> Part of the oracle/ceiling analysis batch (see [[Segmentation Injection Seam]], [[Segmentation Source Interface]], [[T4-oracle-assignment-strategy]]). Implements the real `OracleSegmentation` behind the interface [[Segmentation Source Interface]] reserved as a stub.
+> Part of the oracle/ceiling analysis batch (see [[Segmentation Injection Seam]], [[Segmentation Source Interface]], [[Oracle Assignment Strategy]]). Implements the real `OracleSegmentation` behind the interface [[Segmentation Source Interface]] reserved as a stub.
 
 ## Purpose
 
