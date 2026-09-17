@@ -22,12 +22,15 @@ from harness.reporter import ReporterError, write_report
 
 
 class _FakeMetric:
-    """Stands in for a pyannote.metrics accumulator: only `abs(metric)` is
-    read by the reporter (it must not recompute the total from per-file
-    rows), so that's the only thing this fake needs to support."""
+    """Stands in for a pyannote.metrics accumulator: `abs(metric)` gives the
+    corpus-level rate, and `accumulated_` exposes the component totals
+    (missed detection / false alarm / confusion) the same way
+    DiarizationErrorRate does. The reporter must read both off the
+    accumulator rather than recomputing either from the per-file rows."""
 
-    def __init__(self, total: float):
+    def __init__(self, total: float, accumulated=None):
         self._total = total
+        self.accumulated_ = accumulated if accumulated is not None else {}
 
     def __abs__(self) -> float:
         return self._total
@@ -235,6 +238,76 @@ def test_corpus_summary_includes_accumulated_region_census(tmp_path):
     assert summary["region_t_and_d"] == pytest.approx(5.0)
     assert summary["region_t_minus_d"] == pytest.approx(1.5)
     assert summary["region_d_minus_t"] == pytest.approx(1.0)
+
+
+def test_corpus_summary_includes_der_components_from_accumulator(tmp_path):
+    # T5 step 0: corpus-wide missed detection / false alarm / confusion come
+    # from the shared `der` accumulator's component totals, NOT from summing
+    # the per-file rows. The accumulator values below deliberately disagree
+    # with what summing the rows would give (rows sum to 3.0/3.0/3.0), so an
+    # implementation that sums the rows instead fails loudly here.
+    rows = [
+        _row("a", 0, 0, 0, 1, 1, missed_detection=1.0, false_alarm=1.0, confusion=1.0),
+        _row("b", 0, 0, 0, 1, 1, missed_detection=2.0, false_alarm=2.0, confusion=2.0),
+    ]
+    der = _FakeMetric(
+        0.42,
+        accumulated={
+            "missed detection": 11.5,
+            "false alarm": 22.5,
+            "confusion": 33.5,
+            "total": 100.0,
+            "correct": 32.5,
+        },
+    )
+    overlap_der, der_overlap_assigned, jer = (
+        _FakeMetric(0.1), _FakeMetric(0.2), _FakeMetric(0.3),
+    )
+
+    write_report(
+        rows, der, overlap_der, der_overlap_assigned, jer,
+        per_file_csv_path=tmp_path / "per_file.csv",
+        summary_path=tmp_path / "summary.json",
+    )
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+
+    assert summary["missed_detection"] == pytest.approx(11.5)
+    assert summary["false_alarm"] == pytest.approx(22.5)
+    assert summary["confusion"] == pytest.approx(33.5)
+    # sanity: these are NOT the per-file row sums (3.0 each)
+    assert summary["missed_detection"] != pytest.approx(3.0)
+
+
+def test_corpus_summary_der_components_read_the_der_accumulator_not_another(tmp_path):
+    # The components must come from `der` specifically -- not overlap_der,
+    # der_overlap_assigned, or jer. Each fake below carries distinct component
+    # totals, so wiring the wrong accumulator in is caught.
+    rows = [_row("a", 0, 0, 0, 1, 1)]
+    der = _FakeMetric(
+        0.1, accumulated={"missed detection": 1.0, "false alarm": 2.0, "confusion": 3.0}
+    )
+    overlap_der = _FakeMetric(
+        0.2, accumulated={"missed detection": 90.0, "false alarm": 90.0, "confusion": 90.0}
+    )
+    der_overlap_assigned = _FakeMetric(
+        0.3, accumulated={"missed detection": 70.0, "false alarm": 70.0, "confusion": 70.0}
+    )
+    jer = _FakeMetric(
+        0.4, accumulated={"missed detection": 50.0, "false alarm": 50.0, "confusion": 50.0}
+    )
+
+    write_report(
+        rows, der, overlap_der, der_overlap_assigned, jer,
+        per_file_csv_path=tmp_path / "per_file.csv",
+        summary_path=tmp_path / "summary.json",
+    )
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+
+    assert summary["missed_detection"] == pytest.approx(1.0)
+    assert summary["false_alarm"] == pytest.approx(2.0)
+    assert summary["confusion"] == pytest.approx(3.0)
 
 
 def test_counting_mae_computed_correctly(tmp_path):

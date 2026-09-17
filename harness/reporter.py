@@ -9,6 +9,12 @@ rows, which the epic explicitly forbids (a corpus DER is a ratio over the
 whole corpus, not a mean of per-file ratios). Region census durations have no
 such accumulator (they're raw durations, not error rates), so those three
 fields are summed across the per-file rows directly.
+
+Corpus-level DER components (missed detection / false alarm / confusion, added
+for T5) follow the accumulator rule too, read from `der.accumulated_` rather
+than summed from the per-file rows -- the rows carry each file's own
+`detailed=True` breakdown from the same accumulator, so re-summing them would
+duplicate work the accumulator already did.
 """
 
 from __future__ import annotations
@@ -36,6 +42,15 @@ FIELDNAMES = [
 ]
 
 _REGION_CENSUS_FIELDS = ("region_t_and_d", "region_t_minus_d", "region_d_minus_t")
+
+# summary field name -> pyannote.metrics component key on the DER accumulator
+# (DiarizationErrorRate.metric_components() -> [..., 'false alarm',
+# 'missed detection', 'confusion']).
+_DER_COMPONENT_KEYS = {
+    "missed_detection": "missed detection",
+    "false_alarm": "false alarm",
+    "confusion": "confusion",
+}
 
 
 class ReporterError(ValueError):
@@ -81,6 +96,10 @@ def write_report(
         **{
             field: sum(row[field] for row in rows)
             for field in _REGION_CENSUS_FIELDS
+        },
+        **{
+            field: der.accumulated_.get(key, 0.0)
+            for field, key in _DER_COMPONENT_KEYS.items()
         },
     }
 

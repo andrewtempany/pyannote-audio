@@ -2,14 +2,19 @@
 flat comparison table, one row per run. Generated on demand, not
 hand-maintained. See the run-manifest ticket in
 Obsidian-Diarisation/Tickets/Open/run-manifest.md.
+
+Also builds T5's cross-condition table: the same data grouped by experimental
+condition, with the two ceiling-analysis budget deltas computed rather than
+transcribed by hand.
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 def _flatten_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
@@ -17,7 +22,138 @@ def _flatten_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
     row.update(manifest["run_config"])
     row.setdefault("notes", "")
     row.update(manifest["summary"])
+    row["duration_seconds"] = manifest.get("duration_seconds") or ""
     return row
+
+
+_TABLE_COLUMNS = (
+    ("condition", "Condition"),
+    ("oracle_scope", "Oracle scope"),
+    ("der", "DER"),
+    ("der_overlap_system", "DER overlap (system)"),
+    ("der_overlap_assigned", "DER overlap (assigned)"),
+    ("missed_detection", "Missed detection"),
+    ("false_alarm", "False alarm"),
+    ("confusion", "Confusion"),
+)
+
+# Conditions whose distance from baseline is a "budget": how much DER the
+# corresponding oracle intervention could recover if it were perfect.
+_BUDGET_CONDITIONS = {
+    "oracle_segmentation": "Downstream budget (baseline - oracle segmentation)",
+    "oracle_assignment": "Assignment budget (baseline - oracle assignment)",
+}
+
+
+def _is_true(value: Any) -> bool:
+    return str(value).strip().lower() == "true"
+
+
+def _effective_scope(row: Dict[str, Any]) -> str:
+    """oracle_scope only means something for oracle *assignment* runs.
+
+    run_harness.py's --oracle-scope defaults to "all_pairs" and is recorded in
+    every manifest regardless, so for any other condition the stored value is
+    a default that was never actually chosen -- showing it would imply a
+    decision nobody made.
+    """
+    if row.get("condition") != "oracle_assignment":
+        return ""
+    return str(row.get("oracle_scope", "")).strip()
+
+
+def _fmt(value: Any) -> str:
+    """Render a CSV cell for the table: numbers to 4dp, blanks as an em dash."""
+    text = str(value).strip()
+    if not text:
+        return "--"
+    try:
+        return f"{float(text):.4f}"
+    except ValueError:
+        return text
+
+
+def _render_markdown_table(headers: List[str], rows: List[List[str]]) -> str:
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    lines += ["| " + " | ".join(row) + " |" for row in rows]
+    return "\n".join(lines)
+
+
+def build_cross_condition_table(comparison_csv_path: Union[str, Path]) -> str:
+    """T5: group an aggregated comparison.csv by experimental condition and
+    render a Markdown table plus the ceiling-analysis budget deltas.
+
+    Only rows with `counts_toward_results` true are included -- exploratory
+    and debugging runs are excluded by design, so the table always reflects
+    the deliberately-tracked batch rather than everything ever run.
+
+    Rows are grouped by (condition, oracle_scope): the two oracle_assignment
+    scopes (`all_pairs`, `overlap_degraded`) measure different ceilings and
+    are always reported separately, never averaged into one number.
+
+    Deltas are `baseline - oracle`, so a POSITIVE value means the oracle
+    condition lowered DER (i.e. that much error is recoverable). A negative
+    value honestly means the condition was worse than baseline.
+    """
+    comparison_csv_path = Path(comparison_csv_path)
+    if not comparison_csv_path.exists() or not comparison_csv_path.read_text().strip():
+        return "No runs recorded yet."
+
+    with open(comparison_csv_path, newline="") as f:
+        all_rows = list(csv.DictReader(f))
+
+    rows = [r for r in all_rows if _is_true(r.get("counts_toward_results"))]
+    if not rows:
+        return "No runs with counts_toward_results=True yet."
+
+    headers = [label for _, label in _TABLE_COLUMNS]
+    table_rows = [
+        [
+            _fmt(_effective_scope(row) if key == "oracle_scope" else row.get(key, ""))
+            for key, _ in _TABLE_COLUMNS
+        ]
+        for row in rows
+    ]
+    table = _render_markdown_table(headers, table_rows)
+
+    deltas = _build_delta_lines(rows)
+    if deltas:
+        table += "\n\n" + "\n".join(deltas)
+    return table
+
+
+def _baseline_der(rows: List[Dict[str, Any]]) -> Optional[float]:
+    for row in rows:
+        if row.get("condition") == "baseline":
+            try:
+                return float(row["der"])
+            except (KeyError, ValueError):
+                return None
+    return None
+
+
+def _build_delta_lines(rows: List[Dict[str, Any]]) -> List[str]:
+    baseline = _baseline_der(rows)
+    if baseline is None:
+        return ["_No baseline run recorded -- budget deltas cannot be computed._"]
+
+    lines = ["**Budget deltas** (`baseline - oracle`; positive = oracle lowered DER)", ""]
+    for row in rows:
+        label = _BUDGET_CONDITIONS.get(row.get("condition", ""))
+        if not label:
+            continue
+        try:
+            der = float(row["der"])
+        except (KeyError, ValueError):
+            continue
+        scope = _effective_scope(row)
+        suffix = f" [{scope}]" if scope else ""
+        lines.append(f"- {label}{suffix}: {baseline - der:+.4f}")
+
+    return lines if len(lines) > 2 else []
 
 
 def aggregate_runs(runs_dir: Union[str, Path], output_csv_path: Union[str, Path]) -> Path:
@@ -40,3 +176,28 @@ def aggregate_runs(runs_dir: Union[str, Path], output_csv_path: Union[str, Path]
             writer.writerow(row)
 
     return output_csv_path
+
+
+def main(argv: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runs-dir", default="runs")
+    parser.add_argument("--output-csv", default=None,
+                        help="Defaults to <runs-dir>/comparison.csv.")
+    parser.add_argument(
+        "--cross-condition-table", action="store_true",
+        help="After refreshing the CSV, print T5's cross-condition table "
+             "(grouped by condition, with the ceiling-analysis budget deltas).",
+    )
+    args = parser.parse_args(argv)
+
+    output_csv = Path(args.output_csv or Path(args.runs_dir) / "comparison.csv")
+    aggregate_runs(runs_dir=args.runs_dir, output_csv_path=output_csv)
+
+    if args.cross_condition_table:
+        print(build_cross_condition_table(output_csv))
+    else:
+        print(output_csv)
+
+
+if __name__ == "__main__":
+    main()
