@@ -21,11 +21,45 @@
 # SOFTWARE.
 
 
+def _force_utf8_load_lst(file_lst):
+    """Replacement for pyannote.database's `load_lst`, forced to decode as
+    UTF-8 regardless of the platform's default codepage.
+
+    Root cause: `pyannote/database/loader.py`'s `load_lst()` opens the `.lst`
+    file with `open(file_lst, mode="r")` -- no `encoding=` argument -- so
+    Python falls back to `locale.getpreferredencoding(False)`. On Windows
+    that's `cp1252`, not UTF-8. `tests/data/debug.train.lst` intentionally
+    contains a non-ASCII, UTF-8-encoded filename ("trñ00", added upstream in
+    commit b41b176e to test non-ASCII handling). Decoded as cp1252 instead of
+    UTF-8, the raw bytes b"tr\xc3\xb100" become "trÃ±00" -- a string that
+    looks similar in some renderings but does not match the actual
+    "trñ00.wav" file tracked in git, so pyannote.database.FileFinder raises
+    FileNotFoundError while resolving it.
+
+    `pyannote.database.custom` does `from .loader import load_lst`, binding
+    its own module-level name to the original function object at import
+    time, so patching `pyannote.database.loader.load_lst` alone would not
+    affect the call at `custom.py`'s `subset_entries()` (`uris =
+    load_lst(resolve_path(Path(uri), database_yml))`). Both references are
+    monkeypatched below, before `registry.load_database()` runs, to cover the
+    actual call site as well as the definition site.
+    """
+    with open(file_lst, mode="r", encoding="utf-8") as fp:
+        lines = fp.readlines()
+    return [line.strip() for line in lines]
+
+
 def pytest_sessionstart(session):
     """
     Called after the Session object has been created and
     before performing collection and entering the run test loop.
     """
+
+    import pyannote.database.custom as _database_custom
+    import pyannote.database.loader as _database_loader
+
+    _database_loader.load_lst = _force_utf8_load_lst
+    _database_custom.load_lst = _force_utf8_load_lst
 
     from pyannote.database import registry
 
@@ -99,7 +133,20 @@ def protocol():
 
 @pytest.fixture(scope="session")
 def trained_segmentation_model(protocol):
-    task = SpeakerDiarizationTask(protocol)
+    # num_workers=0: SpeakerDiarizationTask.__init__ (src/pyannote/audio/core/task.py,
+    # ~line 288) defaults num_workers to multiprocessing.cpu_count() // 2, which spins
+    # up DataLoader worker *processes*. On Windows, multiprocessing has no fork(), so
+    # it uses spawn, which requires every object handed to a worker to be picklable by
+    # dotted path -- but registry.load_database() (see the UTF-8 load_lst patch above)
+    # creates the Debug protocol class dynamically at runtime, so pickle can't resolve
+    # it in the child process, and DataLoader startup fails with PicklingError. This
+    # isn't a novel workaround: task.py:291-301 already does the same thing for macOS
+    # ("num_workers > 0 is not supported with macOS and Python 3.8+: setting
+    # num_workers = 0"), because macOS's spawn-by-default multiprocessing has the same
+    # class of limitation. Windows just isn't covered by that existing platform check,
+    # so we force it here instead. These are tiny in-process debug models trained for
+    # exactly one step -- worker parallelism buys nothing anyway.
+    task = SpeakerDiarizationTask(protocol, num_workers=0)
     return _fit(SimpleSegmentationModel(task=task), task)
 
 
@@ -108,7 +155,9 @@ def trained_embedding_model(protocol):
     """apply() always extracts embeddings before clustering -- even under
     OracleClustering -- so every full pipeline() call needs a real embedding
     model, not just the segmentation seam tests."""
-    task = SupervisedRepresentationLearningWithArcFace(protocol)
+    # num_workers=0: same Windows spawn/pickling reason as trained_segmentation_model
+    # above.
+    task = SupervisedRepresentationLearningWithArcFace(protocol, num_workers=0)
     return _fit(_MaskAwareEmbeddingModel(task=task), task)
 
 
