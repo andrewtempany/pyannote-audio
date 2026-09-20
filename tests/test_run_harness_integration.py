@@ -251,7 +251,9 @@ def test_oracle_segmentation_run_completes_scores_and_tagged_in_manifest(tmp_pat
     manifest_files = list(runs_dir.glob("*.json"))
     assert len(manifest_files) == 1
     manifest = json.loads(manifest_files[0].read_text())
-    assert manifest["run_config"]["segmentation_source_id"] == "oracle"
+    # id bumped "oracle" -> "oracle-v2" (oracle-segmentation-seam-no-op fix) to
+    # orphan the pre-fix .harness_cache entries via the cache key -- do not revert.
+    assert manifest["run_config"]["segmentation_source_id"] == "oracle-v2"
     assert manifest["run_config"]["condition"] == "oracle_segmentation"
 
     comparison_csv = tmp_path / "comparison.csv"

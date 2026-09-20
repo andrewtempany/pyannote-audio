@@ -51,12 +51,37 @@ class Runner:
         if cache_path.exists():
             return load_rttm(str(cache_path))[uri]
 
-        # populate() runs -- and may raise (e.g. OracleSegmentation's stub)
-        # -- before the pipeline is touched at all, so a failure here never
-        # leaves a partial/bad cache entry behind.
-        self._segmentation_source.populate(self._pipeline, file)
+        # pipeline.training gates SpeakerDiarization.get_segmentations()'s
+        # only read of CACHED_SEGMENTATION (see harness/segmentation.py's
+        # module docstring) -- set it True around BOTH populate() and the
+        # pipeline call, uniformly for every segmentation source, so the
+        # only difference between conditions is whether CACHED_SEGMENTATION
+        # was pre-populated. This also makes embedding caching
+        # (speaker_diarization.py training-gated read/write) behave
+        # identically across conditions instead of only for oracle runs.
+        #
+        # getattr/hasattr guard: every real pyannote Pipeline sets
+        # self.training = False in __init__ (pyannote/pipeline/pipeline.py),
+        # so this is always present in production. It's guarded here only so
+        # lightweight fakes in tests that don't care about the flag (and
+        # never defined it, since it was previously untouched by the runner)
+        # aren't forced to grow one just to be called.
+        has_training_attr = hasattr(self._pipeline, "training")
+        original_training = getattr(self._pipeline, "training", None)
+        if has_training_attr:
+            self._pipeline.training = True
+        try:
+            # populate() runs -- and may raise (e.g. OracleSegmentation's
+            # fail-fast KeyError) -- before the pipeline is touched at all,
+            # so a failure here never leaves a partial/bad cache entry
+            # behind.
+            self._segmentation_source.populate(self._pipeline, file)
 
-        output = self._pipeline(file)
+            output = self._pipeline(file)
+        finally:
+            if has_training_attr:
+                self._pipeline.training = original_training
+
         hypothesis = output.speaker_diarization
 
         cache_path.parent.mkdir(parents=True, exist_ok=True)

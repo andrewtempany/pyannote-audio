@@ -2,10 +2,16 @@
 
 Each source has a stable `id` (feeds the runner's cache key, TICKET-06) and a
 `populate(pipeline, file)` hook that may inject a cached segmentation onto
-`file[pipeline.CACHED_SEGMENTATION]` before the pipeline is applied. Doing so
-requires the `pipeline.training = True` seam established in
-TICKET-01-segmentation-injection-seam.md -- SpeakerDiarization.get_segmentations()
-only consults CACHED_SEGMENTATION while `pipeline.training` is True.
+`file[pipeline.CACHED_SEGMENTATION]` before the pipeline is applied. That
+injection only takes effect if `pipeline.training` is True when the pipeline
+consults CACHED_SEGMENTATION (SpeakerDiarization.get_segmentations() gates the
+read on `self.training`, per the seam established in
+TICKET-01-segmentation-injection-seam.md) -- but `populate()` itself does not
+manage that flag. `Runner.run()` (harness/runner.py) sets
+`pipeline.training = True` around *both* the `populate()` call and the
+pipeline call, uniformly for every segmentation source, so the flag is a
+run-scoped concern rather than something each source manages independently.
+See Obsidian-Diarisation/Docs/Oracle Segmentation Seam.md.
 """
 
 from __future__ import annotations
@@ -29,7 +35,11 @@ class SegmentationSource(ABC):
     def populate(self, pipeline: Any, file: MutableMapping) -> None:
         """Called before the pipeline is applied to `file`. May populate
         `file[pipeline.CACHED_SEGMENTATION]`; must not otherwise mutate
-        `pipeline` or `file`."""
+        `pipeline` or `file`. Does NOT manage `pipeline.training` -- the
+        caller (Runner.run()) is responsible for setting that flag True
+        around both this call and the pipeline call, uniformly across all
+        segmentation sources, so that CACHED_SEGMENTATION population is the
+        only difference between conditions."""
         raise NotImplementedError
 
 
@@ -62,11 +72,21 @@ class OracleSegmentation(SegmentationSource):
     Setting `file[pipeline.CACHED_SEGMENTATION]` only takes effect if
     `pipeline.training` is True when the pipeline consults it (see
     Obsidian-Diarisation/Docs/Segmentation Injection Seam.md) -- this method
-    flips it for the duration of `populate()` and restores it afterwards
+    does NOT flip that flag itself. `Runner.run()` sets `pipeline.training =
+    True` around both the `populate()` call and the subsequent pipeline call
+    (uniformly for baseline and oracle alike), and restores it afterwards
     (even on failure), so a failed/aborted run never leaves the pipeline
-    permanently in training mode."""
+    permanently in training mode.
 
-    id = "oracle"
+    Also raises `RuntimeError` if `pipeline._expects_num_speakers` is True
+    (e.g. KMeansClustering or OracleClustering) -- this method briefly sets
+    `file["annotation"]` as scaffolding for `oracle_segmentation()` and
+    restores it afterwards, but if speaker-count-driven clustering is
+    enabled, `SpeakerDiarization.apply()` would read that same key for the
+    true speaker count before it's restored, silently contaminating the
+    oracle-segmentation condition with oracle speaker count too."""
+
+    id = "oracle-v2"
 
     def __init__(self, reference_lookup: Mapping[str, Annotation] = None):
         self._reference_lookup = reference_lookup if reference_lookup is not None else {}
@@ -81,13 +101,26 @@ class OracleSegmentation(SegmentationSource):
         )
         frames = pipeline._segmentation.model.receptive_field
 
-        file["annotation"] = reference
+        if getattr(pipeline, "_expects_num_speakers", False):
+            raise RuntimeError(
+                "pipeline._expects_num_speakers is True (e.g. KMeansClustering "
+                "or OracleClustering) -- OracleSegmentation.populate() sets "
+                "file['annotation'] as scaffolding for oracle_segmentation(), "
+                "and that key would then leak true speaker count into the "
+                "pipeline's own clustering (speaker_diarization.py:600-602), "
+                "silently turning this into an oracle-segmentation-plus-"
+                "oracle-count condition. See Obsidian-Diarisation/Docs/"
+                "Oracle Segmentation Seam.md (Confound A) before proceeding."
+            )
 
-        original_training = pipeline.training
-        pipeline.training = True
+        original_annotation = file.get("annotation")
+        file["annotation"] = reference
         try:
             file[pipeline.CACHED_SEGMENTATION] = oracle_segmentation(
                 file, window, frames
             )
         finally:
-            pipeline.training = original_training
+            if original_annotation is None:
+                file.pop("annotation", None)
+            else:
+                file["annotation"] = original_annotation
