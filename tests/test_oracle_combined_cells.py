@@ -236,15 +236,17 @@ def test_oracle_assignment_alone_still_routes_to_baseline(tmp_path):
 # --------------------------------------------------------------------------
 
 _COLUMNS = [
-    "run_id", "condition", "oracle_scope", "counts_toward_results", "notes",
-    "der", "der_overlap_system", "der_overlap_assigned",
+    "run_id", "created_at", "condition", "oracle_scope", "counts_toward_results",
+    "notes", "der", "der_overlap_system", "der_overlap_assigned",
     "missed_detection", "false_alarm", "confusion",
 ]
 
 
-def _row(run_id, condition, der, oracle_scope="", counts_toward_results="True", **extra):
+def _row(run_id, condition, der, oracle_scope="", counts_toward_results="True",
+         created_at="2026-09-20T00:00:00", **extra):
     row = {
         "run_id": run_id,
+        "created_at": created_at,
         "condition": condition,
         "oracle_scope": oracle_scope,
         "counts_toward_results": counts_toward_results,
@@ -338,6 +340,30 @@ def test_existing_budget_deltas_keep_baseline_as_reference(tmp_path):
         if "Assignment budget" in line and "oracle segmentation" not in line
     )
     assert "+0.0097" in assign_delta
+
+
+def test_reference_der_uses_the_most_recent_matching_run(tmp_path):
+    # runs/ holds two generations of oracle_segmentation runs, both marked
+    # counts_toward_results: a stale pre-seam-fix one (segmentation id
+    # "oracle", DER 0.1705) and the current one ("oracle-v2", 0.0396). The
+    # stale row sorts first, so taking the FIRST match would measure the
+    # combined cell against 0.1705 and yield a meaningless ~0.16 delta while
+    # looking perfectly plausible.
+    rows = [
+        _row("r1", "baseline", 0.1705, created_at="2026-09-16T21:39:18"),
+        _row("stale", "oracle_segmentation", 0.1705, created_at="2026-09-17T01:36:30"),
+        _row("current", "oracle_segmentation", 0.0396, created_at="2026-09-18T12:53:23"),
+        _row("r4", _COMBINED, 0.0100, oracle_scope="all_pairs",
+             created_at="2026-09-20T12:00:00"),
+    ]
+    csv_path = _write_csv(tmp_path / "comparison.csv", rows)
+
+    table = build_cross_condition_table(csv_path)
+
+    # 0.0396 - 0.0100 = +0.0296, against the CURRENT oracle_segmentation run
+    assert "+0.0296" in table
+    # 0.1705 - 0.0100 = +0.1605 would mean it used the stale row
+    assert "+0.1605" not in table
 
 
 def test_missing_oracle_segmentation_row_says_so_explicitly(tmp_path):

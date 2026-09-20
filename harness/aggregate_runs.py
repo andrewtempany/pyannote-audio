@@ -151,18 +151,28 @@ def build_cross_condition_table(comparison_csv_path: Union[str, Path]) -> str:
 
 
 def _condition_der(rows: List[Dict[str, Any]], condition: str) -> Optional[float]:
-    """DER of the first row for `condition`, or None if absent/unparseable.
+    """DER of the MOST RECENT row for `condition`, or None if absent.
 
     Used to resolve each budget delta's own reference row: not every delta is
     measured against baseline (see _BUDGET_CONDITIONS).
+
+    Recency matters because a condition can legitimately have been scored more
+    than once, with both runs marked counts_toward_results -- e.g. an
+    oracle_segmentation run from before the segmentation-seam fix (DER 17.05%)
+    alongside the re-run after it (3.96%). The stale row sorts earlier, so
+    taking the first match would measure the combined cell against the wrong
+    reference and emit a plausible-looking but meaningless delta.
     """
-    for row in rows:
-        if row.get("condition") == condition:
-            try:
-                return float(row["der"])
-            except (KeyError, ValueError):
-                return None
-    return None
+    matching = [row for row in rows if row.get("condition") == condition]
+    if not matching:
+        return None
+
+    # created_at is an ISO-8601 UTC timestamp, so lexical max is chronological.
+    latest = max(matching, key=lambda row: str(row.get("created_at", "")))
+    try:
+        return float(latest["der"])
+    except (KeyError, ValueError):
+        return None
 
 
 def _baseline_der(rows: List[Dict[str, Any]]) -> Optional[float]:
