@@ -15,6 +15,9 @@
 #       --refinement-strategy oracle --oracle-scope all_pairs --counts-toward-results
 #   ./run_experiment.sh oracle_segmentation "ground-truth segmentation" \
 #       --oracle-rttm path/to/only_words.rttm --counts-toward-results
+#   ./run_experiment.sh oracle_segmentation_assignment "combined 2x2 cell, all_pairs" \
+#       --refinement-strategy oracle --oracle-scope all_pairs \
+#       --oracle-rttm path/to/only_words.rttm --counts-toward-results
 #
 # Data root, condition, and split default to the full AMI IHM test split you
 # already have downloaded -- override with DATA_ROOT / CONDITION / SPLIT env
@@ -24,7 +27,8 @@ set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
   echo "Usage: $0 <run-condition> <notes> [extra run_harness.py args...]" >&2
-  echo "  run-condition: baseline | oracle_segmentation | oracle_assignment | nearest_centroid" >&2
+  echo "  run-condition: baseline | oracle_segmentation | oracle_assignment |" >&2
+  echo "                 oracle_segmentation_assignment | nearest_centroid" >&2
   exit 1
 fi
 

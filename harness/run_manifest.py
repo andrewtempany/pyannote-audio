@@ -36,7 +36,22 @@ VALID_CONDITIONS = (
     "baseline",
     "oracle_segmentation",
     "oracle_assignment",
+    # The combined 2x2 cell: oracle segmentation AND oracle assignment. A
+    # distinct value rather than an overload of "oracle_segmentation" --
+    # T5's table keys on `condition` alone, so reusing that value would
+    # silently merge two different experiments into one row.
+    "oracle_segmentation_assignment",
     "nearest_centroid",
+)
+
+# Conditions that score ground-truth segmentation rather than the pipeline's
+# own. Segmentation routing keys on membership here, never on equality with a
+# single condition: a new oracle-segmentation condition that isn't in this
+# tuple would fall through to baseline segmentation and silently score the
+# wrong thing while writing a manifest that claims otherwise.
+ORACLE_SEGMENTATION_CONDITIONS = (
+    "oracle_segmentation",
+    "oracle_segmentation_assignment",
 )
 
 # T1: refinement_strategy identifies which post-clustering refinement a run

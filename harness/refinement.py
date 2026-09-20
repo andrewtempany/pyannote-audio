@@ -147,6 +147,24 @@ def _is_overlap_degraded(support: Timeline, reference: Annotation) -> bool:
     return overlapping_regions.duration() > 0.5 * total
 
 
+def _new_counts() -> Dict[str, int]:
+    """A fresh tally of the four ways the oracle loop can dispose of a pair.
+
+    Kept as four separate paths rather than one skip total because they mean
+    different things diagnostically. `unmapped_speaker` in particular is the
+    path that holds DER off its theoretical floor -- the dominant reference
+    speaker maps to no cluster the pipeline produced, so the pair can't be
+    relabelled without inventing a cluster -- and collapsing it into a
+    generic skip count would discard the most informative number.
+    """
+    return {
+        "relabelled": 0,
+        "out_of_scope": 0,
+        "no_reference_overlap": 0,
+        "unmapped_speaker": 0,
+    }
+
+
 def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs") -> Callable:
     """Build a refinement strategy that assigns each pair the hypothesis
     cluster mapped (by whole-file temporal overlap) to that pair's dominant
@@ -161,6 +179,11 @@ def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs")
     centroids, segmentations) has no slot for. The harness is responsible
     for calling this once per file (see run_harness.py) and setting
     `pipeline.refinement` to the result before running that file.
+
+    The returned closure carries a `counts` dict recording how each pair was
+    disposed of -- see `_new_counts` for the four paths and why they're kept
+    apart. It's reset on every call, so it always describes the most recent
+    invocation rather than accumulating across files.
     """
     if oracle_scope not in _ORACLE_SCOPES:
         raise ValueError(
@@ -175,6 +198,8 @@ def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs")
         segmentations,
     ) -> np.ndarray:
         result = hard_clusters.copy()
+        counts = _new_counts()
+        strategy.counts = counts
 
         hypothesis = _reconstruct_hypothesis(hard_clusters, segmentations)
         if len(hypothesis) == 0:
@@ -202,24 +227,29 @@ def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs")
                 if oracle_scope == "overlap_degraded" and not _is_overlap_degraded(
                     support, reference
                 ):
+                    counts["out_of_scope"] += 1
                     continue  # not in scope for this oracle_scope -- leave unchanged
 
                 dominant_speaker = _dominant_reference_speaker(support, reference)
                 if dominant_speaker is None:
+                    counts["no_reference_overlap"] += 1
                     continue  # no reference overlap at all -- leave unchanged
 
                 mapped_cluster = speaker_to_cluster.get(dominant_speaker)
                 if mapped_cluster is None:
                     # method step 5: dominant reference speaker maps to no
                     # cluster the pipeline produced -- never invent one.
+                    counts["unmapped_speaker"] += 1
                     continue
 
                 # cluster labels in `hypothesis` are strings (str(cluster));
                 # convert back to the original numpy dtype for assignment.
                 result[chunk_index, local_speaker] = int(str(mapped_cluster))
+                counts["relabelled"] += 1
 
         return result
 
+    strategy.counts = _new_counts()
     return strategy
 
 

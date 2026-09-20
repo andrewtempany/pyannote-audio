@@ -37,12 +37,33 @@ _TABLE_COLUMNS = (
     ("confusion", "Confusion"),
 )
 
-# Conditions whose distance from baseline is a "budget": how much DER the
-# corresponding oracle intervention could recover if it were perfect.
+# Conditions whose distance from a reference condition is a "budget": how much
+# DER the corresponding oracle intervention could recover if it were perfect.
+#
+# Each entry carries its OWN reference condition, because they aren't all
+# measured against baseline. The combined cell (oracle segmentation + oracle
+# assignment) is measured against `oracle_segmentation`: a baseline-referenced
+# delta would double-count the segmentation budget already reported on its own
+# line, and the quantity of interest is the assignment budget *given clean
+# segmentation*, directly comparable to the assignment ceilings measured under
+# baseline segmentation.
 _BUDGET_CONDITIONS = {
-    "oracle_segmentation": "Downstream budget (baseline - oracle segmentation)",
-    "oracle_assignment": "Assignment budget (baseline - oracle assignment)",
+    "oracle_segmentation": (
+        "baseline", "Downstream budget (baseline - oracle segmentation)"
+    ),
+    "oracle_assignment": (
+        "baseline", "Assignment budget (baseline - oracle assignment)"
+    ),
+    "oracle_segmentation_assignment": (
+        "oracle_segmentation",
+        "Assignment budget under oracle segmentation "
+        "(oracle_segmentation - oracle_segmentation_assignment)",
+    ),
 }
+
+# Conditions for which oracle_scope reflects a decision somebody actually
+# made, rather than --oracle-scope's recorded default.
+_SCOPED_CONDITIONS = ("oracle_assignment", "oracle_segmentation_assignment")
 
 
 def _is_true(value: Any) -> bool:
@@ -50,14 +71,18 @@ def _is_true(value: Any) -> bool:
 
 
 def _effective_scope(row: Dict[str, Any]) -> str:
-    """oracle_scope only means something for oracle *assignment* runs.
+    """oracle_scope only means something for runs that actually refine, i.e.
+    the conditions in _SCOPED_CONDITIONS.
 
     run_harness.py's --oracle-scope defaults to "all_pairs" and is recorded in
     every manifest regardless, so for any other condition the stored value is
     a default that was never actually chosen -- showing it would imply a
     decision nobody made.
+
+    The combined condition belongs here too: its two runs differ *only* by
+    scope, so blanking it would render them as identical rows.
     """
-    if row.get("condition") != "oracle_assignment":
+    if row.get("condition") not in _SCOPED_CONDITIONS:
         return ""
     return str(row.get("oracle_scope", "")).strip()
 
@@ -125,9 +150,14 @@ def build_cross_condition_table(comparison_csv_path: Union[str, Path]) -> str:
     return table
 
 
-def _baseline_der(rows: List[Dict[str, Any]]) -> Optional[float]:
+def _condition_der(rows: List[Dict[str, Any]], condition: str) -> Optional[float]:
+    """DER of the first row for `condition`, or None if absent/unparseable.
+
+    Used to resolve each budget delta's own reference row: not every delta is
+    measured against baseline (see _BUDGET_CONDITIONS).
+    """
     for row in rows:
-        if row.get("condition") == "baseline":
+        if row.get("condition") == condition:
             try:
                 return float(row["der"])
             except (KeyError, ValueError):
@@ -135,23 +165,45 @@ def _baseline_der(rows: List[Dict[str, Any]]) -> Optional[float]:
     return None
 
 
+def _baseline_der(rows: List[Dict[str, Any]]) -> Optional[float]:
+    return _condition_der(rows, "baseline")
+
+
 def _build_delta_lines(rows: List[Dict[str, Any]]) -> List[str]:
-    baseline = _baseline_der(rows)
-    if baseline is None:
+    if _baseline_der(rows) is None and not any(
+        row.get("condition") in _BUDGET_CONDITIONS for row in rows
+    ):
         return ["_No baseline run recorded -- budget deltas cannot be computed._"]
 
-    lines = ["**Budget deltas** (`baseline - oracle`; positive = oracle lowered DER)", ""]
+    lines = [
+        "**Budget deltas** (`reference - oracle`; positive = oracle lowered DER)",
+        "",
+    ]
     for row in rows:
-        label = _BUDGET_CONDITIONS.get(row.get("condition", ""))
-        if not label:
+        entry = _BUDGET_CONDITIONS.get(row.get("condition", ""))
+        if not entry:
             continue
+        reference_condition, label = entry
         try:
             der = float(row["der"])
         except (KeyError, ValueError):
             continue
+
         scope = _effective_scope(row)
         suffix = f" [{scope}]" if scope else ""
-        lines.append(f"- {label}{suffix}: {baseline - der:+.4f}")
+
+        reference = _condition_der(rows, reference_condition)
+        if reference is None:
+            # Explicit rather than falling back to baseline: for the combined
+            # condition a baseline-referenced delta would double-count the
+            # segmentation budget and read as an assignment budget.
+            lines.append(
+                f"- {row['condition']}{suffix}: no {reference_condition} run "
+                f"recorded -- this delta cannot be computed."
+            )
+            continue
+
+        lines.append(f"- {label}{suffix}: {reference - der:+.4f}")
 
     return lines if len(lines) > 2 else []
 

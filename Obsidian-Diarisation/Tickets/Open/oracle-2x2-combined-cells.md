@@ -1,5 +1,5 @@
 ---
-status: not-started
+status: in-progress
 created: 2026-09-20
 ---
 
@@ -289,6 +289,66 @@ _Append while the work happens, not at the end._
     counts nothing today. Separated four exit paths rather than one total — "unmapped
     speaker" is the path predicted to hold DER off the 0.51% floor, so collapsing it into a
     single skip count would discard the most diagnostic number.
+
+### Plumbing implemented (2026-09-20)
+
+Built test-first (`tests/test_oracle_combined_cells.py`, 23 tests). Red run showed 17
+failures across all six work items before any implementation; the 4 initial greens were
+deliberate regression guards on existing routing/delta behaviour.
+
+- **One vacuous pass caught and fixed before implementing.**
+  `test_combined_condition_requires_oracle_rttm` passed in the red run for the wrong
+  reason: argparse rejected `oracle_segmentation_assignment` as an *invalid choice* and
+  exited, so `pytest.raises(SystemExit)` was satisfied without the required-argument check
+  existing at all. Tightened to assert on argparse's message (`--oracle-rttm` present,
+  `invalid choice` absent) so it can only pass for the real reason. Worth remembering as a
+  pattern: any `SystemExit` assertion against an argparse CLI is suspect while the value
+  under test isn't yet a valid choice.
+- **Item 1 (schema).** Added `oracle_segmentation_assignment` to `VALID_CONDITIONS`, plus a
+  new `ORACLE_SEGMENTATION_CONDITIONS` tuple in the same module. The tuple is the fix for
+  the *class* of bug behind item 2, not just the instance: routing now keys on membership
+  in a named shared fact that lives beside the vocabulary, so the next
+  oracle-segmentation condition can't silently miss it. `run_harness.py`'s
+  `--run-condition` choices are now derived from `VALID_CONDITIONS` rather than retyped,
+  removing the drift risk entirely.
+- **Item 2 (routing).** Equality test replaced with membership; the `--oracle-rttm`
+  required check widened with it and its error message now names the actual condition.
+  Four routing tests pin the matrix: combined → oracle, plain oracle_segmentation →
+  oracle, baseline → baseline, oracle_assignment-alone → baseline (that last one matters —
+  widening the test must not capture the already-measured baseline-segmentation cell).
+- **Item 3 (scope suppression).** `_effective_scope` now checks membership in
+  `_SCOPED_CONDITIONS` instead of equality with `oracle_assignment`.
+- **Item 4 (budget deltas).** `_BUDGET_CONDITIONS` values became
+  `(reference_condition, label)` tuples, and `_build_delta_lines` resolves each row's own
+  reference via a new `_condition_der`. `_baseline_der` is retained as a thin wrapper so
+  the existing two lines are provably unchanged (a test asserts they still read +0.1309 /
+  +0.0097 against baseline). Missing reference row emits an explicit "cannot be computed"
+  line rather than falling back to baseline. Header changed from `baseline - oracle` to
+  `reference - oracle` since it now covers both.
+- **Item 5 (instrumentation).** `make_oracle_strategy`'s closure carries a `counts` dict
+  (`_new_counts()`), reset per call, with the four exit paths incremented in the loop. A
+  test asserts the four paths *partition* every pair (totals sum to pair count), which is
+  what makes the numbers quotable. `run_harness` accumulates them across files and prints
+  one line per run.
+  - **Caveat worth knowing before reading the numbers:** a cache hit skips the pipeline
+    entirely, so the strategy never runs and its counts stay zero. The totals describe
+    uncached files only. For these two runs the cache key is fresh (see below) so they'll
+    be genuine, but a re-run of the same condition will report zeros.
+  - `relabelled` counts every pair assigned a mapped cluster, including where the label
+    was already correct — not "changed value". Chosen so the four paths partition cleanly;
+    a "changed" counter would leave a fifth unlabelled path.
+- **Item 6 (provenance).** `oracle_rttm` recorded in `run_config`, additive and defaulting
+  to `None`, deliberately *not* added to `REQUIRED_RUN_CONFIG_FIELDS` — a test asserts old
+  manifests without the key still validate. Closes Gap 1 of [[run-manifest-provenance]];
+  that ticket was still open at implementation time, so it did not land first.
+- `run_experiment.sh` usage line and examples updated with the combined condition.
+- **Cache separation confirmed empirically, not assumed** (the ticket asked for this).
+  Computed the real keys for `oracle-v2` segmentation across the three refinement ids:
+  `identity` → `c8e3977c…`, `oracle:all_pairs` → `eec684fe…`,
+  `oracle:overlap_degraded` → `0db89dc3…`. Three distinct keys, so the existing
+  `oracle_segmentation` run can't be served to either new run. No cache clear needed.
+- Full harness suite re-run after the changes: 118 passed, 1 skipped (pre-existing), no
+  regressions.
 
 ## See also
 

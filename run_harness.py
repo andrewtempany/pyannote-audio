@@ -24,7 +24,11 @@ from harness.config import HarnessConfig
 from harness.datasets import AMIDatasetAdapter
 from harness.refinement import get_refinement_strategy, make_oracle_strategy
 from harness.reporter import write_report
-from harness.run_manifest import write_manifest
+from harness.run_manifest import (
+    ORACLE_SEGMENTATION_CONDITIONS,
+    VALID_CONDITIONS,
+    write_manifest,
+)
 from harness.runner import Runner
 from harness.scorer import score
 
@@ -67,6 +71,7 @@ def run_harness(
     oracle_scope: Optional[str] = None,
     corpus: str = "AMI",
     counts_toward_results: bool = False,
+    oracle_rttm: Optional[str] = None,
 ) -> Dict[str, float]:
     der = DiarizationErrorRate(collar=config.der_collar, skip_overlap=config.der_skip_overlap)
     overlap_der = DiarizationErrorRate(
@@ -102,18 +107,41 @@ def run_harness(
 
     run_started_at = time.monotonic()
     rows = []
+    # Corpus-level tally of how the oracle strategy disposed of each pair,
+    # summed over files. Logged rather than written to the manifest: it
+    # explains a surprising DER (particularly via "unmapped_speaker") without
+    # needing a schema change to quote in a report.
+    oracle_pair_counts: Dict[str, int] = {}
     for uri, reference, uem in adapter:
+        oracle_strategy = None
         if refinement_strategy == "oracle":
-            pipeline.refinement = make_oracle_strategy(
+            oracle_strategy = make_oracle_strategy(
                 reference, oracle_scope=oracle_scope or "all_pairs"
             )
+            pipeline.refinement = oracle_strategy
         file = {"uri": uri, "audio": str(_audio_path(config, uri))}
         hypothesis = runner.run(file)
         row = score(reference, hypothesis, uem, der, overlap_der, der_overlap_assigned, jer)
         row["uri"] = uri
         rows.append(row)
 
+        if oracle_strategy is not None:
+            # A cache hit skips the pipeline entirely, so the strategy is
+            # never invoked and its counts stay at zero -- that's a real
+            # caveat on these totals, not a bug, and is why they're reported
+            # per run alongside the cache state rather than stored.
+            for path, count in getattr(oracle_strategy, "counts", {}).items():
+                oracle_pair_counts[path] = oracle_pair_counts.get(path, 0) + count
+
     duration_seconds = time.monotonic() - run_started_at
+
+    if oracle_pair_counts:
+        total = sum(oracle_pair_counts.values())
+        print(
+            f"oracle pair disposition (scope={oracle_scope or 'all_pairs'}, "
+            f"{total} pairs over {len(rows)} files): "
+            + ", ".join(f"{path}={count}" for path, count in sorted(oracle_pair_counts.items()))
+        )
 
     summary = write_report(
         rows, der, overlap_der, der_overlap_assigned, jer, per_file_csv_path, summary_path
@@ -136,6 +164,13 @@ def run_harness(
             "mic_condition": config.condition,
             "git_commit": _current_git_commit(),
             "counts_toward_results": counts_toward_results,
+            # Additive provenance field (Gap 1 of the run-manifest-provenance
+            # ticket): which reference RTTM built the ground-truth
+            # segmentation. None for runs that used the pipeline's own.
+            # Deliberately not added to REQUIRED_RUN_CONFIG_FIELDS -- every
+            # manifest written before this change lacks the key entirely and
+            # must stay readable.
+            "oracle_rttm": oracle_rttm,
         }
         write_manifest(run_config, summary, runs_dir, duration_seconds=duration_seconds)
 
@@ -173,10 +208,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     )
     parser.add_argument(
         "--run-condition", default="baseline",
-        choices=["baseline", "oracle_segmentation", "oracle_assignment", "nearest_centroid"],
+        choices=list(VALID_CONDITIONS),
         help="Which oracle/ceiling-analysis condition this run belongs to (not to be "
         "confused with --condition, the AMI mic condition). Recorded in the manifest's "
-        "'condition' field; T5's cross-condition deltas key on this.",
+        "'condition' field; T5's cross-condition deltas key on this. "
+        "'oracle_segmentation_assignment' is the combined 2x2 cell: pair it with "
+        "--refinement-strategy oracle and --oracle-rttm.",
     )
     parser.add_argument(
         "--refinement-strategy", default="identity",
@@ -222,9 +259,15 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     # future ticket implements clustering-model selection.
     clustering_model = "pyannote-default"
 
-    if args.run_condition == "oracle_segmentation":
+    # Membership, not equality: an exact `== "oracle_segmentation"` test let
+    # the combined condition fall through to BaselineSegmentation(), which
+    # fails silently -- the run completes and writes a manifest claiming
+    # oracle segmentation while actually scoring baseline.
+    if args.run_condition in ORACLE_SEGMENTATION_CONDITIONS:
         if not args.oracle_rttm:
-            parser.error("--run-condition oracle_segmentation requires --oracle-rttm")
+            parser.error(
+                f"--run-condition {args.run_condition} requires --oracle-rttm"
+            )
         segmentation_source = OracleSegmentation(
             reference_lookup=load_rttm(args.oracle_rttm)
         )
@@ -246,6 +289,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         oracle_scope=args.oracle_scope,
         corpus=args.corpus,
         counts_toward_results=args.counts_toward_results,
+        oracle_rttm=args.oracle_rttm,
     )
     print(summary)
     return summary
