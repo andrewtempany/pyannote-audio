@@ -249,10 +249,52 @@ ordering.
 
 ## Deliverable
 
-The completed 2x2 table, the confusion delta for each cell, and a one-paragraph reading of
-which of the two interpretations above the result supports.
+### The completed 2x2 (DER, AMI IHM test, 16 meetings, collar=0, skip_overlap=False)
 
-The interpretation *is* the deliverable — do not append recommended next steps.
+|                             | baseline seg | oracle seg |
+| --------------------------- | ------------ | ---------- |
+| baseline assignment         | 17.05%       | 3.96%      |
+| oracle assignment, degraded | 16.58%       | **2.75%**  |
+| oracle assignment, all      | 16.08%       | **2.19%**  |
+
+### Confusion per cell (seconds)
+
+|                             | baseline seg | oracle seg |
+| --------------------------- | ------------ | ---------- |
+| baseline assignment         | 1212.2       | 1057.5     |
+| oracle assignment, degraded | n/a          | **686.1**  |
+| oracle assignment, all      | n/a          | **516.0**  |
+
+The `n/a` cells are real: those two runs predate the DER component breakdown in the summary,
+so their confusion was never recorded. Not re-run, since the 2x2 turns on DER and the
+confusion deltas that matter are against `oracle_segmentation`.
+
+Confusion delta for each new cell, against the 1057.51 s under oracle segmentation:
+
+- `all_pairs`: 516.0 s, **-541.5 s (51.2% of confusion removed)**
+- `overlap_degraded`: 686.1 s, **-371.4 s (35.1% removed)**
+
+Missed detection (16.427 s) and false alarm (141.127 s) are byte-identical to the
+`oracle_segmentation` run in both new cells.
+
+### Reading
+
+The assignment budget under clean segmentation is **1.76 pt** (3.96% -> 2.19%), against
+**0.97 pt** measured under baseline segmentation — 1.8x larger, in the direction the ticket
+anticipated but well short of the ~3 pt the prediction implied, and DER lands at 2.19%
+rather than the predicted 0.5–1.5%. This is neither of the two interpretations fixed in
+advance. It is not "near 1%", so the baseline-segmentation ceilings did not merely understate
+a large recoverable budget; nor is it "near 3.9%", so relabelling is emphatically not useless
+on clean input — it removes over half the confusion (541 s of 1057 s) and is the single
+largest post-segmentation improvement measured on this project. The instrumentation says why
+it stops there, and contradicts the predicted mechanism: `unmapped_speaker` fired **zero**
+times in both runs, so over-clustering is not what holds DER off the 0.51% floor. Instead
+44.9% of all pairs (56998 of 126925) hit `no_reference_overlap` — their support intersects no
+reference speaker at all, leaving the oracle nothing to relabel toward. The residual 1.68 pt
+gap to the floor is therefore not an assignment problem in the sense a classifier could
+learn: it is frame-level disagreement between the segmentation mask and the reference over
+regions the reference scores as silence, which a *labelling* strategy cannot reach by
+construction, however good its labels.
 
 ## Implementation Notes
 
@@ -349,6 +391,101 @@ deliberate regression guards on existing routing/delta behaviour.
   `oracle_segmentation` run can't be served to either new run. No cache clear needed.
 - Full harness suite re-run after the changes: 118 passed, 1 skipped (pre-existing), no
   regressions.
+
+### Results (2026-09-20)
+
+Both runs completed over 16 meetings from commit `1dab5122`, oracle RTTM
+`harness-data/IHM/test.rttm`, collar 0, skip_overlap False.
+
+| Run | scope | manifest | DER | MD | FA | Conf | wall |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | all_pairs | `20260920T082056Z-2aada13d` | **2.193%** | 16.427 | 141.127 | 516.00 | 35.0 min |
+| 2 | overlap_degraded | `20260920T101248Z-5479daf2` | **2.747%** | 16.427 | 141.127 | 686.09 | fast (warm cache) |
+
+Run 2 completed well under Run 1's 35 min because segmentation/embeddings were already
+warm. The strategy still executed — its pair counts are non-zero — so the numbers are
+genuine, not a cached replay of Run 1.
+
+**Criterion 2 MISSED, criterion 4 MISSED, both reported rather than adjusted** per the
+ticket's standing instruction. Criteria 1, 3, 5, 6 pass.
+
+Criterion 3 passes *exactly*: MD 16.42709375 and FA 141.12684375 are identical to the
+oracle-seg run to 8 decimal places in both runs. Relabelling moved confusion and nothing
+else, which is the strongest available evidence the refinement is touching only what it
+should.
+
+Scope ordering held (`overlap_degraded` 2.75% > `all_pairs` 2.19%), as expected but not
+required.
+
+#### The prediction's mechanism was wrong, not just its magnitude
+
+`unmapped_speaker = 0` in **both** runs. The ticket predicted that path — dominant
+reference speaker mapping to no produced cluster — would be what held DER off the 0.51%
+floor, reasoning from 9/16 meetings over-clustering under oracle segmentation. It never
+fired once across 126925 pairs.
+
+Over-clustering does not strand reference speakers. Verified directly against
+`optimal_mapping` rather than reasoned about: with 3 reference speakers split across 5
+hypothesis clusters, all 3 speakers map (`{A:0, B:2, C:4}`) and the surplus clusters 1 and 3
+go unmapped in the *other* direction, which costs nothing because the oracle only ever
+reads `speaker_to_cluster`. A reference speaker is stranded only when it has **zero**
+hypothesis overlap across the whole file — confirmed as the one case that does produce an
+unmapped speaker. Under oracle segmentation every reference speaker has speech by
+construction, so `unmapped_speaker = 0` is structural rather than luck, and the ticket's
+inference from "9/16 meetings over-cluster" to "pairs will be left unmapped" does not
+follow.
+
+The real residual is `no_reference_overlap`: **56998 pairs, 44.9% of all pairs** in Run 1.
+These are pairs whose temporal support intersects no reference speaker at all, so the
+strategy leaves them untouched by design. Under oracle segmentation the segment boundaries
+come from the reference, so this is not boundary noise — it is the frame-level active-speaker
+mask disagreeing with the reference annotation over regions the reference scores as silence
+for every speaker. Relabelling cannot reach them: there is no dominant reference speaker to
+relabel toward.
+
+The four paths partition exactly (69927 + 56998 = 126925 in Run 1; 98541 + 28384 = 126925 in
+Run 2), so these counts are a complete account of every pair, not a sample.
+
+#### Scope populations differ radically between segmentation conditions
+
+Run 2's `out_of_scope = 98541` means only 28384 pairs (22.4%) classified as
+overlap-degraded under oracle segmentation. Note also `no_reference_overlap = 0` in Run 2:
+every pair that passes `_is_overlap_degraded` necessarily has reference overlap, so the
+narrower scope structurally cannot encounter that path. This confirms the ticket's
+suspicion that `_is_overlap_degraded` reclassifies over a substantially changed track
+population — the two scopes are not nested subsets of the same pair set they were under
+baseline segmentation.
+
+### Second trap found: stale reference row (2026-09-20, after item 4 landed)
+
+Rendering the table against the **real** `runs/` manifests — not just the synthetic CSVs
+the unit tests use — surfaced a second way to get the wrong combined delta. Worth doing
+routinely; the synthetic fixtures had one row per condition and so couldn't express this.
+
+`runs/` holds two `oracle_segmentation` runs, **both** marked `counts_toward_results`:
+
+| created_at          | seg id     | DER    |
+| ------------------- | ---------- | ------ |
+| 2026-09-17T01:36:30 | oracle     | 0.1705 |
+| 2026-09-18T12:53:23 | oracle-v2  | 0.0396 |
+
+The first is the pre-seam-fix run ([[oracle-segmentation-seam-no-op]]), where oracle
+segmentation was a silent no-op and DER matched baseline. `_condition_der` as first
+written returned the *first* matching row, which is the stale one, so the combined delta
+came out at `0.1705 - 0.0100 = +0.1605` — precisely the double-counted ~16 pt figure item 4
+exists to prevent, reached by a different route and equally plausible-looking.
+
+Fixed by resolving the reference to the most recent matching run by `created_at` (ISO-8601
+UTC, so lexical max is chronological). Test `test_reference_der_uses_the_most_recent_
+matching_run` encodes both generations and asserts `+0.0296`, not `+0.1605`.
+
+**Known pre-existing wart, deliberately not fixed here:** `_build_delta_lines` emits one
+line per *row*, so the stale run still produces its own `Downstream budget: +0.0000` line
+next to the real `+0.1309`, and both oracle_segmentation generations appear as table rows.
+That predates this ticket and doesn't affect the combined delta now that references resolve
+by recency. Fixing it properly means deciding whether superseded runs should be
+de-marked, filtered by segmentation id, or de-duplicated by condition — a call for the
+results-table owner, not a silent change here. Candidate follow-up ticket.
 
 ## See also
 
