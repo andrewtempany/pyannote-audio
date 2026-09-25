@@ -1,0 +1,36 @@
+{
+  "run_id": "20260917T054753Z-32241285",
+  "created_at": "2026-09-17T05:47:53.397502+00:00",
+  "run_config": {
+    "pipeline_config_id": "pyannote/speaker-diarization-community-1",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "pyannote-default",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "nearest_centroid",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "T5 re-run: nearest_centroid refinement -- re-scored to populate corpus DER component breakdown (missed detection / false alarm / confusion)",
+    "refinement_strategy": "nearest_centroid",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "64bc98d2",
+    "counts_toward_results": true
+  },
+  "summary": {
+    "der": 0.16792363760650816,
+    "der_overlap_system": 0.32903241918782916,
+    "der_overlap_assigned": 0.21356420273191185,
+    "jer": 0.21658351842532644,
+    "counting_mae": 0.25,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2433.11687500005,
+    "region_t_minus_d": 1393.9391249999528,
+    "region_d_minus_t": 382.94937499995154,
+    "missed_detection": 2925.049468749914,
+    "false_alarm": 1099.0743744999131,
+    "confusion": 1133.4700000000078
+  },
+  "duration_seconds": 1959.4849999999997
+}

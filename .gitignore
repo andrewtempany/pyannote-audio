@@ -100,6 +100,14 @@ Samples/
 # Obsidian local UI state
 Obsidian-Diarisation/.obsidian/
 
-# harness run cache/output
+# harness run cache (regenerable, large)
 .harness_cache/
-runs/
+
+# harness run outputs: manifests and per-file scores are results, not scratch.
+# runs/* not runs/ -- a negation cannot re-include from an excluded directory.
+runs/*
+!runs/*.json
+!runs/comparison.csv
+
+# upstream ignores *.csv above; per-file scores are results
+!per_file_*.csv

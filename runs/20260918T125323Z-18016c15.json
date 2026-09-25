@@ -1,0 +1,36 @@
+{
+  "run_id": "20260918T125323Z-18016c15",
+  "created_at": "2026-09-18T12:53:23.128836+00:00",
+  "run_config": {
+    "pipeline_config_id": "pyannote/speaker-diarization-community-1",
+    "segmentation_source_id": "oracle-v2",
+    "clustering_model": "pyannote-default",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "oracle_segmentation",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "Oracle (ground-truth) segmentation re-run after the seam fix (oracle-segmentation-seam-no-op ticket): training flag now applied uniformly in Runner.run so the injected CACHED_SEGMENTATION is actually read, annotation leak closed, cache id bumped to oracle-v2 to orphan the stale no-op entries. Supersedes invalid run 3c8deb71. Full AMI IHM test split, 16 meetings.",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "7e50c056",
+    "counts_toward_results": true
+  },
+  "summary": {
+    "der": 0.03956063929671511,
+    "der_overlap_system": 0.10428634905120525,
+    "der_overlap_assigned": 0.10370612799500206,
+    "jer": 0.07978044419008236,
+    "counting_mae": 0.6875,
+    "counting_exact_match_percent": 43.75,
+    "region_t_and_d": 3821.2587187498343,
+    "region_t_minus_d": 5.7972812501686946,
+    "region_d_minus_t": 73.25503125016866,
+    "missed_detection": 16.42709375038809,
+    "false_alarm": 141.12684375038467,
+    "confusion": 1057.5085312499484
+  },
+  "duration_seconds": 2839.547000000006
+}

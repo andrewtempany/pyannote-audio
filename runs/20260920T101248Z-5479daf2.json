@@ -1,0 +1,37 @@
+{
+  "run_id": "20260920T101248Z-5479daf2",
+  "created_at": "2026-09-20T10:12:48.592826+00:00",
+  "run_config": {
+    "pipeline_config_id": "pyannote/speaker-diarization-community-1",
+    "segmentation_source_id": "oracle-v2",
+    "clustering_model": "pyannote-default",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "oracle_segmentation_assignment",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "Oracle segmentation + oracle assignment (combined 2x2 cell), overlap_degraded scope",
+    "refinement_strategy": "oracle",
+    "oracle_scope": "overlap_degraded",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "1dab5122",
+    "counts_toward_results": true,
+    "oracle_rttm": "C:/Users/Andrew/Code/AMI-diarization-setup/harness-data/IHM/test.rttm"
+  },
+  "summary": {
+    "der": 0.027467643828276007,
+    "der_overlap_system": 0.06921020926728466,
+    "der_overlap_assigned": 0.06859799226660929,
+    "jer": 0.052685613901818154,
+    "counting_mae": 0.6875,
+    "counting_exact_match_percent": 43.75,
+    "region_t_and_d": 3821.2587187498343,
+    "region_t_minus_d": 5.7972812501686946,
+    "region_d_minus_t": 73.25503125016866,
+    "missed_detection": 16.42709375038809,
+    "false_alarm": 141.12684375038467,
+    "confusion": 686.0851874999656
+  },
+  "duration_seconds": 4813.391000000003
+}
