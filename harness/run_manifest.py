@@ -60,6 +60,49 @@ ORACLE_SEGMENTATION_CONDITIONS = (
 # when T4 lands.
 VALID_REFINEMENT_STRATEGIES = ("identity", "oracle", "nearest_centroid")
 
+# Which clustering algorithm a run used, as selected by `--clustering-model`.
+#
+# `pyannote-default` and `vbx` ARE THE SAME CLASS. community-1 ships
+# `clustering: VBxClustering` with `threshold: 0.6, Fa: 0.07, Fb: 0.8` (verified
+# from the shipped config.yaml and from the live pipeline), and those are the
+# values behind the recorded baseline DER 0.17048543579940637. Several project
+# docs and this vocabulary's own ticket claimed the default was
+# `AgglomerativeClustering`; that is false, and mapping `pyannote-default` to
+# agglomerative would silently change the default condition while still
+# reproducing a manifest that looked like a baseline run.
+#
+# The two values differ only in intent: `pyannote-default` means "whatever the
+# checkpoint ships", `vbx` means "VBx, chosen deliberately". They resolve to the
+# same class and therefore to the same cache key, so they are one condition, not
+# two.
+#
+# `OracleClustering` is deliberately ABSENT. It is a real enum member, so adding
+# it would be a one-line change -- which is exactly why its absence is written
+# down. An oracle clustering available as an ordinary sweep point would produce
+# impossibly good numbers under a manifest indistinguishable from any other run.
+VALID_CLUSTERING_MODELS = (
+    "pyannote-default",
+    "agglomerative",
+    "vbx",
+    "kmeans",
+)
+
+# Vocabulary value -> `pyannote.audio.pipelines.clustering.Clustering` enum
+# member name.
+#
+# Every value here MUST be a real enum member. `SpeakerDiarization.__init__`
+# (speaker_diarization.py:283-288) looks the name up in that enum and raises
+# `ValueError` listing the valid members if it misses, so a typo here would
+# surface as a library error rather than a harness one -- later, and less
+# clearly. `tests/test_clustering_model_selection.py` asserts the subset
+# relation so this mapping cannot drift away from the enum.
+CLUSTERING_MODEL_CLASSES = {
+    "pyannote-default": "VBxClustering",
+    "agglomerative": "AgglomerativeClustering",
+    "vbx": "VBxClustering",
+    "kmeans": "KMeansClustering",
+}
+
 
 class RunManifestError(ValueError):
     """Raised when a manifest can't be written: missing required run_config

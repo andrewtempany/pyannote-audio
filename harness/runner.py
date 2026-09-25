@@ -27,14 +27,35 @@ class Runner:
         segmentation_source: Any,
         cache_dir: Union[str, Path],
         refinement_id: str = "identity",
+        intermediate_cache: Any = None,
     ):
         self._pipeline = pipeline
         self._pipeline_config_id = pipeline_config_id
         self._segmentation_source = segmentation_source
         self._cache_dir = Path(cache_dir)
         self._refinement_id = refinement_id
+        # Optional second cache tier (harness/intermediate_cache.py). None
+        # keeps the historical single-tier behavior, which is what the
+        # existing runner tests exercise.
+        self._intermediate_cache = intermediate_cache
 
     def cache_key(self, uri: str) -> str:
+        """Key for the FINAL HYPOTHESIS (the RTTM).
+
+        Includes `pipeline_config_id`, which as of the pre-clustering-cache
+        work is a composite of the checkpoint, the clustering class name and
+        every instantiated clustering hyperparameter (see
+        harness/cache_id.pipeline_config_id). Clustering MUST be in this key:
+        it determines the speaker labels, so two clustering configurations that
+        shared a key would mean the second silently served the first's cached
+        RTTM -- a hyperparameter sweep in which every point reports point 1's
+        DER, on a run that completes cleanly and writes a valid manifest.
+
+        Contrast `IntermediateCache.key()`, which deliberately EXCLUDES
+        clustering so that segmentation and embeddings are shared across
+        clustering variants. Getting the two the wrong way round yields either
+        a useless cache or silently wrong results.
+        """
         raw = (
             f"{self._pipeline_config_id}|{self._segmentation_source.id}|"
             f"{self._refinement_id}|{uri}"
@@ -77,7 +98,26 @@ class Runner:
             # behind.
             self._segmentation_source.populate(self._pipeline, file)
 
+            # Second tier: put cached segmentation/embeddings onto `file` so
+            # the pipeline's own training-gated reads
+            # (speaker_diarization.py:337-344 and :377-386) find them instead
+            # of running the segmentation model and embedding extractor.
+            #
+            # Deliberately AFTER segmentation_source.populate(): an oracle
+            # source's ground-truth segmentation must win over anything on
+            # disk, and populate() will not overwrite a key that is already
+            # present.
+            if self._intermediate_cache is not None:
+                self._intermediate_cache.populate(self._pipeline, file)
+
             output = self._pipeline(file)
+
+            # Harvest whatever the pipeline left behind. Inside the try so it
+            # still sees `file` while training mode is on, but after the
+            # pipeline call so the arrays exist. A warm run re-saving is a
+            # no-op (save() returns early if the path exists).
+            if self._intermediate_cache is not None:
+                self._intermediate_cache.save(self._pipeline, file)
         finally:
             if has_training_attr:
                 self._pipeline.training = original_training
