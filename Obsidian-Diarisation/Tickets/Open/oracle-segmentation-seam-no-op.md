@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 created: 2026-09-18
 ---
 
@@ -140,9 +140,15 @@ if self._expects_num_speakers and num_speakers is None:
 
 `_expects_num_speakers` comes from `self.clustering.expects_num_clusters`
 (`speaker_diarization.py:295`). Community-1 uses `pyannote-default` =
-`AgglomerativeClustering`, which sets `expects_num_clusters = False`
-(`clustering.py:310`). **So this branch does not fire today** and there is no live
+**`VBxClustering`**, which sets `expects_num_clusters = False`
+(`clustering.py:552`). **So this branch does not fire today** and there is no live
 speaker-count confound.
+
+> **Attribution corrected 2026-09-25.** This paragraph previously credited
+> `AgglomerativeClustering` (`clustering.py:310`). The shipped default is VBx; agglomerative
+> has never been run here. **The conclusion is unchanged** — both classes declare
+> `expects_num_clusters = False`, so the branch is dormant either way. Only the reason is
+> corrected. See [[Pre-Clustering Cache]].
 
 **But it is one config change away from firing.** The only two classes that set it True are
 `KMeansClustering` (`clustering.py:496`) and `OracleClustering` (`clustering.py:675`). The
@@ -175,7 +181,7 @@ Restore `file["annotation"]` to its prior state once the array is built, so the 
 never sees it. Unambiguous and independent of how Confound B is resolved.
 
 **Justification is the forward risk, not a live confound.** On today's config
-(`AgglomerativeClustering`) the only effect is cosmetic relabelling. Retain this fix because
+(`VBxClustering`) the only effect is cosmetic relabelling. Retain this fix because
 the planned KMeans clustering sweep flips `expects_num_clusters` to True and turns the same
 key into a real speaker-count leak — see Confound A above. Doing it now costs nothing; not
 doing it means a future run is silently invalid.
@@ -197,7 +203,9 @@ finally:
 ```
 
 `_expects_num_speakers` has been resolved for this checkpoint: **False**
-(`AgglomerativeClustering`, `clustering.py:310`). Verified 2026-09-18. The write-up can state
+(`VBxClustering`, `clustering.py:552`; attribution corrected 2026-09-25 from
+`AgglomerativeClustering`, the finding itself unchanged). Verified 2026-09-18, re-verified
+2026-09-25. The write-up can state
 that the oracle condition does not leak speaker count on this configuration, and must note
 the KMeans caveat alongside it.
 

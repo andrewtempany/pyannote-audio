@@ -24,3 +24,16 @@ The `Obsidian-Diarisation/` vault is the source of truth for in-progress work an
 - **Log implementation notes in the ticket as you build.** Keep an "Implementation Notes" section in the ticket and append to it while the work is happening — not just at the end. Capture things a doc reader would need: decisions made and why, alternatives rejected and why, non-obvious gotchas, key files/functions touched, and how it hooks into existing code. Treat it as informal running commentary, not polished prose — it just needs to be there when it's time to write the real doc.
 - **On completion, convert the ticket into documentation — don't just close it.** Rewrite the note from a task-shaped ticket into reference documentation that describes the feature as it now exists (what it does, how it fits into the architecture, how to use it), drawing on the Implementation Notes rather than reconstructing that context from memory. The final doc should read as reference material, not a log of the work done to build it. Set `status: done`, then move the rewritten note to `Obsidian-Diarisation/Docs/<short-title>.md`. If the original ticket also exists as a loose file in the repo (e.g. a root-level `TICKET-*.md` predating the vault), delete that file once the vault doc covers it — the repo should never hold a stale duplicate of something the vault now documents properly.
 - Before starting new feature work, check `Obsidian-Diarisation/Docs/` and `Obsidian-Diarisation/Tickets/Open/` for relevant prior context rather than re-deriving it from scratch.
+
+# Pre-approved commands
+
+Read-only inspection commands are pre-approved in `.claude/settings.json` and must not trigger a permission prompt. Instead of asking, announce them inline and proceed:
+
+```
+*** grep -rn "oracle_scope" harness/
+```
+
+- **Announce, don't ask.** Prefix the command with `***` on its own line, then run it. One line per command — no explanation needed for routine inspection.
+- **Covered:** file reading (`cat`, `head`, `tail`, `sed -n`), search (`grep`, `rg`, `find`, `ls`), text processing (`wc`, `sort`, `uniq`, `cut`, `tr`, `awk`, `diff`, `jq`), environment checks (`pwd`, `which`, `date`, `stat`, `file`, `du`, `df`, `nvidia-smi`, `tasklist`, `ps`), read-only git (`status`, `diff`, `log`, `show`, `branch`, `rev-parse`, `ls-files`, `blame`, `check-ignore`, `stash list`, `worktree list`), and `pytest`.
+- **Still ask for:** anything that writes, deletes, or publishes — `rm`, `mv`, `git add`/`commit`/`stash push`/`push`, `git worktree add`, full harness runs (`run_harness.py`), `pip install`, and arbitrary `python -c` that does more than read.
+- Batch independent pre-approved commands into one call rather than issuing them one at a time.
