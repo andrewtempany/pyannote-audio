@@ -89,7 +89,7 @@ The CLI exposes `--refinement-strategy` (choices: `identity`, `oracle`, `nearest
 
 Ran both implemented strategies on an RTX 3060 against the real AMI IHM test split:
 
-- **`identity`** (`--run-condition baseline`): `der = 0.17049287033463784` — bit-for-bit identical to the pre-hook baseline. Confirms the hook's `identity` path is a true no-op end to end, not just in isolated unit tests.
+- **`identity`** (`--run-condition baseline`): `der = 0.17049287033463784` — bit-for-bit identical to the pre-hook baseline. (This is a **warm, RTTM-cached** figure; the cold full-precision equivalent is `0.17048543579940637`. The ~8e-6 gap is RTTM millisecond truncation, not nondeterminism — resolved 2026-09-25, see [[Pre-Clustering Cache]] and [[Oracle Ceiling Metrics]].) Confirms the hook's `identity` path is a true no-op end to end, not just in isolated unit tests.
 - **`nearest_centroid`** (`--run-condition nearest_centroid`): `der = 0.17049287033463784` — **exactly** equal to baseline, not merely close. This is the expected result, not a red flag: clustering already assigns each pair to its own nearest centroid by construction (that's what clustering is), so re-assigning by nearest-centroid on top of an already-converged clustering result is close to a no-op. The batch's own design notes frame `nearest_centroid` as "not a headline comparator... expected to land close to baseline" — a plumbing validation and a citable naive-method result, not evidence the refinement mechanism does nothing. A *large* swing from baseline would have been the actual red flag (wrong shape, wrong axis, mismatched chunk ordering, etc.).
 
 Both runs appear correctly in `runs/comparison.csv` with matching `condition`/`refinement_strategy` values.

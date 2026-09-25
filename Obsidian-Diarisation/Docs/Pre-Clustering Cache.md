@@ -83,27 +83,55 @@ pipeline-configuration portion.
 - Clustering configuration is deliberately absent, per the reasoning above.
 
 Not currently in the key, and safe **only because the harness holds them fixed**:
-`segmentation_step` (0.1), `embedding_exclude_overlap` (True), the batch sizes, and — on a
-non-powerset checkpoint — `segmentation.threshold`, which would change the binarization the
-embeddings are extracted from. If the harness ever varies any of these, they must be added. A
-reader auditing this list should confirm those values are still fixed in `run_harness.py`.
+`segmentation_step` (0.1), `embedding_exclude_overlap` (True), and — on a non-powerset
+checkpoint — `segmentation.threshold`, which would change the binarization the embeddings are
+extracted from. If the harness ever varies any of these, they must be added. A reader auditing
+this list should confirm those values are still fixed in `run_harness.py`.
 
-> **Correction, 2026-09-25 — batch size changes VALUES, not just speed.** This paragraph
-> previously read "the batch sizes (which affect speed, not values)". **That was asserted, not
-> measured, and it is false.** `get_embeddings()` stacks waveforms into one tensor and runs the
-> embedding model on the batch (`speaker_diarization.py:460-468`), so batch size changes
-> reduction order inside the model and perturbs the embeddings at float precision.
+**The inference batch sizes ARE in the key** (`segmentation_batch_size`,
+`embedding_batch_size`, both 32 from the shipped `config.yaml`). They were originally left out
+on the reasoning that batching "affects speed, not values". That reasoning was wrong:
+`get_embeddings()` stacks waveforms into one tensor and runs the embedding model on the batch
+(`speaker_diarization.py:460-468`), and segmentation is batched the same way (`:259`), so batch
+shape changes float reduction order and therefore the arrays themselves.
+
+> **The batch-size collision is a PROVEN HAZARD, not an observed effect.** Established by
+> computing both key hashes at batch 32 and batch 8 and finding them **identical** — so two
+> runs at different batch sizes would have shared one cache entry while producing different
+> embeddings, the second being served arrays it never computed.
 >
-> Measured: run `20260925T080105Z-7ddbf6ae` at batch 8 scored DER 0.17049342382952828 against
-> the batch-32 cold run's 0.17048543579940637 — a shift in the 6th significant figure on every
-> metric. Because batch size is in **neither** key (verified: both key hashes are byte-identical
-> at batch 8 and batch 32), two runs at different batch sizes **collide on the same cache
-> entry**. The cache cannot distinguish them.
+> **It did not fire in any recorded run.** It is tempting to cite run
+> `20260925T080105Z-7ddbf6ae` (batch 8, DER 0.17049342382952828) as a measurement of batch-size
+> drift. **It is not one.** All 16 RTTM entries and all 16 intermediates for the baseline
+> condition carry timestamps between 05:00:30 and 07:58:46 UTC — the window of the cold run
+> `a1be3514`, which ended 07:58:47. Nothing in either tier is stamped at or after 08:01:05,
+> when `7ddbf6ae` started. That run therefore wrote nothing, read all 16 cached RTTMs, and
+> **never invoked the embedding model at all**. Batch size could not have affected any number
+> in it.
 >
-> Consequence: a sweep must hold batch size fixed, or the batch size must enter the intermediate
-> key. Runs at batch 32 and batch 8 are not interchangeable and must not be compared.
-> The matched warm/cold pair at batch 32 (`...083743Z-a1f4391c` cold, `...083922Z-1123cb9e`
-> warm) agrees to all 17 digits, so the cache itself is exact.
+> The entire 8e-6 difference in `7ddbf6ae` is RTTM quantisation — see the tier distinction
+> below.
+
+## The two tiers differ in exactness, and this is the key fact about them
+
+**The intermediate cache is EXACT.** Arrays round-trip byte-identically: verified with
+`np.array_equal` on the real cached entries, dtype preserved (`float32` in, `float32` out —
+that is what the model emits, so there is no `float64` to lose), and `.npz` compression is
+lossless. A warm intermediate run and a cold run produce the same hypotheses.
+
+**The final-RTTM cache is LOSSY BY DESIGN, and needs no fix.** `Annotation._iter_rttm` formats
+every boundary with `:.3f`, so an RTTM stores milliseconds. Anything scored from a *cached
+RTTM* is therefore millisecond-truncated, while a fresh run scores full-precision in-memory
+`Annotation` objects.
+
+Consequences, which explain several otherwise-puzzling numbers in this project:
+
+- A cold run and a warm (RTTM-cached) run of **one identical configuration** always differ by
+  roughly **8e-6 DER**. That is the format, not nondeterminism and not a caching defect.
+- **The figure to cite against the published benchmark is the COLD one**, because it is scored
+  at full precision: `DER 0.17048543579940637`.
+- Evidence, if needed: on the 16 baseline meetings the warm run's per-file `missed_detection`
+  is an exact multiple of 0.001 in **16/16** files, the cold run's in **0/16**.
 
 **Final tier.** The checkpoint, the clustering class, every instantiated clustering
 hyperparameter, the segmentation source, the refinement id, and the uri.

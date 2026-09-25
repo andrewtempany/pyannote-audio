@@ -131,7 +131,29 @@ decayed into a reported metric.
 
 ---
 
-### P2 — `KMeansClustering` with estimated k
+### P2 — `AgglomerativeClustering` (untested alternative)
+
+Added to this list 2026-09-25. It was previously absent because the vault wrongly recorded it
+as the shipped default, so it looked like the baseline rather than a candidate. It is not: it
+has never been run in this project.
+
+Greedy agglomerative merging over embeddings, treating them as an unordered set. That makes it
+the natural contrast to the VBx baseline, which models turns as a sequence — so this is a fair
+test of whether the baseline's sequence modelling earns its place.
+
+`expects_num_clusters = False` ([clustering.py:310](../../../src/pyannote/audio/pipelines/clustering.py)),
+so it runs with no counting work, and it is already implemented. Zero implementation cost.
+
+Hyperparameters ([clustering.py:322-328](../../../src/pyannote/audio/pipelines/clustering.py)):
+`threshold` `Uniform(0.0, 2.0)`, `min_cluster_size` `Integer(1, 20)`, `method` (seven linkages).
+
+**Trap:** `--clustering-model agglomerative` yields `threshold=0.6` inherited from the shipped
+VBx config, which is *not* agglomerative's own default and sits low on its range. Set
+`threshold` explicitly at every sweep point. Owned by [[clustering-agglomerative]].
+
+---
+
+### P3 — `KMeansClustering` with estimated k
 
 Already implemented but blocked: `expects_num_clusters = True`, and the harness never supplies
 `num_speakers`. `run_harness.py:122` builds `file = {"uri": ..., "audio": ...}` and
@@ -147,7 +169,7 @@ fails for an understood reason is worth a paragraph.
 
 ---
 
-### P3 — HDBSCAN (exploratory)
+### P4 — HDBSCAN (exploratory)
 
 Density-based, k-free, no global `eps` to tune.
 
@@ -166,9 +188,9 @@ Whether that helps or hurts is a real question and the answer is informative eit
 
 ---
 
-### P4 — Affinity propagation, Bayesian GMM
+### P5 — Affinity propagation, Bayesian GMM
 
-Both k-free. Include only if P0 to P3 land with time to spare.
+Both k-free. Include only if P0 to P4 land with time to spare.
 
 Bayesian GMM with a Dirichlet process prior was a stronger candidate before `VBxClustering`
 turned up in the codebase; VBx now occupies that niche with a better pedigree. Demoted
@@ -213,11 +235,12 @@ Spawn in this order. Each is small against the interface once the prerequisites 
 
 1. `pre-clustering-embedding-cache` — prerequisite, blocks everything
 2. `clustering-model-selection` — prerequisite, blocks everything
-3. `clustering-vbx` — P0, no implementation
-4. `clustering-spectral-eigengap` — P1, also unblocks P2
-5. `clustering-kmeans-estimated-k` — P2
-6. `clustering-hdbscan` — P3
-7. P4 only if time allows
+3. `clustering-vbx` — P0, no implementation (the shipped default's own review)
+4. `clustering-spectral-eigengap` — P1, also unblocks P3
+5. `clustering-agglomerative` — P2, no implementation
+6. `clustering-kmeans-estimated-k` — P3
+7. `clustering-hdbscan` — P4
+8. P5 only if time allows
 
 ## Acceptance criteria for the epic
 

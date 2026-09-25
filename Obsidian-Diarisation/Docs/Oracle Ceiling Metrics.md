@@ -122,6 +122,26 @@ Ran on an RTX 3060 against the real AMI IHM test split with `--refinement-strate
 ```
 
 - `der` is **bit-for-bit identical** to the pre-T1 baseline manifest (`0.17049287033463784`) — confirms none of these changes altered the actual DER computation, only what's reported alongside it.
+
+> **Why this project records two baseline DERs — RESOLVED 2026-09-25.** Two values appear
+> across the vault: `0.17049287033463784` (here and in [[Post-Clustering Refinement Hook]]) and
+> `0.17048543579940637` (the oracle-era and later runs). The gap was previously attributed to
+> "first-computation nondeterminism that the cache then freezes". **That was a guess and it is
+> wrong.** This closes a previously open question rather than adding a new caveat.
+>
+> The cause is RTTM quantisation. `Annotation._iter_rttm` writes every boundary with `:.3f`, so
+> a run scored from **cached RTTMs** is millisecond-truncated, while the **first** run of a
+> configuration scores full-precision in-memory `Annotation` objects. Every later run of the
+> same configuration reads the truncated file.
+>
+> Evidence: the run above agrees with the known RTTM-cached run `20260925T080105Z-7ddbf6ae` to
+> full precision on `der_overlap_system`, `der_overlap_assigned` and all three region terms, and
+> its region values are exact multiples of 0.001 where the cold run's are not.
+>
+> So `0.17049287…` is a **warm (RTTM-cached)** figure and `0.17048543…` is the **cold,
+> full-precision** one. Both are correct for what they measure; they are not two attempts at
+> one number. **Cite the cold figure against the published benchmark.** See
+> [[Pre-Clustering Cache]] for the tier-by-tier statement.
 - `der_overlap_assigned` (0.219) sits between `der` (0.170) and `der_overlap_system` (0.334), matching the expected shape: assignment error confined to detected overlap is worse than the whole-file average but better than the full reference-overlap number (which also folds in missed-overlap detection).
 - Region census is non-zero and non-trivial on real data: 2433s / 1394s / 383s.
 

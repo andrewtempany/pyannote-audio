@@ -1,6 +1,8 @@
 ---
 status: not-started
 created: 2026-09-25
+priority: P2
+aliases: [agglomerative-hyperparameter-review]
 ---
 
 # Agglomerative clustering: evaluation of an alternative method
