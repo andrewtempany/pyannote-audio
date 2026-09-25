@@ -1,6 +1,7 @@
 ---
 status: done
 created: 2026-09-25
+aliases: [pre-clustering-embedding-cache]
 ---
 
 # Pre-Clustering Cache

@@ -1,6 +1,7 @@
 ---
 status: done
 created: 2026-09-04
+aliases: [clustering-model-selection]
 ---
 
 # Evaluation Harness

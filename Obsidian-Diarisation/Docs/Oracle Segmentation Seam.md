@@ -2,6 +2,7 @@
 status: done
 created: 2026-09-18
 completed: 2026-09-25
+aliases: [oracle-segmentation-seam-no-op]
 ---
 
 # Oracle Segmentation Seam
