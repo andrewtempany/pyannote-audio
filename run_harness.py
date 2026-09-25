@@ -109,6 +109,28 @@ def run_harness(
     # shared across every point of a clustering sweep -- the entire reason the
     # tier exists. `pipeline_config_id` (which includes clustering) must never
     # be passed here; see harness/cache_id.py for why the two differ.
+    # Read off the live pipeline, never from a flag: the property
+    # `segmentation_batch_size` (speaker_diarization.py:298-299) delegates to
+    # `self._segmentation.batch_size`, so this is the value inference will
+    # actually use.
+    def _batch_size(name):
+        """Coerce to int, or None if the pipeline has no usable value.
+
+        The manifest is JSON, so a non-numeric value (a test double's
+        auto-attribute, say) must become None rather than being written
+        out -- an unserialisable object here would fail the manifest
+        write at the very end of a completed run, losing its result.
+        """
+        try:
+            return int(getattr(pipeline, name))
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+    inference_batch_sizes = {
+        "segmentation": _batch_size("segmentation_batch_size"),
+        "embedding": _batch_size("embedding_batch_size"),
+    }
+
     intermediate_cache = None
     if use_intermediate_cache:
         intermediate_cache = IntermediateCache(
@@ -223,6 +245,12 @@ def run_harness(
             # before this change lacks both keys and must stay readable.
             "clustering_config": clustering_config,
             "intermediate_config_id": intermediate_config_id_value,
+            # Batch size is part of the intermediate key because it changes
+            # the cached arrays' VALUES, not just how fast they are produced
+            # (speaker_diarization.py:460-468). Recorded in readable form
+            # alongside the hash so a future reader can tell why two runs
+            # that look identically configured landed on different entries.
+            "inference_batch_sizes": inference_batch_sizes,
         }
         write_manifest(run_config, summary, runs_dir, duration_seconds=duration_seconds)
 

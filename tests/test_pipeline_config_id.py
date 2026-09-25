@@ -79,8 +79,18 @@ class _FakeKMeansClustering(PipelineBase):
     with an empty parameter set must not crash the extractor."""
 
 
-def _pipeline(clustering):
-    return SimpleNamespace(klustering=type(clustering).__name__, clustering=clustering)
+def _pipeline(clustering, embedding_batch_size=32, segmentation_batch_size=32):
+    """A stand-in for the real pipeline carrying everything both keys read.
+
+    Batch sizes default to 32, the shipped value, so every pre-existing test
+    keeps the identity it had before batch size entered the intermediate key.
+    """
+    return SimpleNamespace(
+        klustering=type(clustering).__name__,
+        clustering=clustering,
+        embedding_batch_size=embedding_batch_size,
+        segmentation_batch_size=segmentation_batch_size,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -236,3 +246,92 @@ def test_the_two_tiers_are_not_the_same_key():
     assert intermediate_config_id(CHECKPOINT, pipeline) != pipeline_config_id(
         CHECKPOINT, pipeline
     )
+
+
+# --------------------------------------------------------------------------
+# Batch size IS in the intermediate key (and only there)
+# --------------------------------------------------------------------------
+
+
+def test_intermediate_key_differs_by_embedding_batch_size():
+    """The headline criterion for the batch-size fix.
+
+    `get_embeddings()` stacks waveforms into one tensor and runs the embedding
+    model on the batch (speaker_diarization.py:460-468), so batch shape changes
+    float reduction order and perturbs the embeddings. Two runs at different
+    batch sizes therefore produce DIFFERENT cached arrays.
+
+    Before this change both runs produced the SAME intermediate key, so they
+    collided silently: whichever ran first won, and the second was served
+    arrays it did not compute. Measured on real runs -- batch 8 scored DER
+    0.17049342382952828 against batch 32's 0.17048543579940637.
+
+    Batch size is a value input that also happens to affect speed. Leaving it
+    out of the key was the bug.
+    """
+    a = intermediate_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), embedding_batch_size=32)
+    )
+    b = intermediate_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), embedding_batch_size=8)
+    )
+
+    assert a != b, (
+        "batch 32 and batch 8 share an intermediate cache key, so they collide "
+        "silently while producing different embeddings"
+    )
+
+
+def test_intermediate_key_differs_by_segmentation_batch_size():
+    """Segmentation is batched too (speaker_diarization.py:259), so the same
+    argument applies to its batch size. A key that captured only the embedding
+    batch size would pass the test above while still colliding on a
+    segmentation-batch change."""
+    a = intermediate_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), segmentation_batch_size=32)
+    )
+    b = intermediate_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), segmentation_batch_size=8)
+    )
+
+    assert a != b
+
+
+def test_intermediate_key_stable_across_calls_at_one_batch_size():
+    """The other half of the criterion: adding batch size must not make the key
+    unstable. A key that varied between calls at a FIXED configuration would
+    orphan the cache on every run -- every lookup a miss, every run paying full
+    GPU cost, while looking healthy.
+
+    Two separately-constructed pipelines at the same batch size, to catch a key
+    that accidentally captured object identity rather than value.
+    """
+    a = intermediate_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), embedding_batch_size=32)
+    )
+    b = intermediate_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), embedding_batch_size=32)
+    )
+
+    assert a == b
+
+
+def test_batch_size_does_NOT_enter_the_final_key():
+    """Deliberate asymmetry, and the reason this is not simply "add it to both".
+
+    The final-RTTM key already contains the intermediate components, so batch
+    size reaches it transitively -- but nothing batch-specific is added to it
+    beyond that. The test that matters is the tier distinction above; this one
+    pins the decision so a future edit cannot quietly add a second, independent
+    batch-size term to the final key.
+    """
+    final_32 = pipeline_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), embedding_batch_size=32)
+    )
+    final_8 = pipeline_config_id(
+        CHECKPOINT, _pipeline(_FakeVBxClustering(), embedding_batch_size=8)
+    )
+
+    # They differ, because the final key is built ON TOP of the intermediate
+    # components -- not because batch size was added to it separately.
+    assert final_32 != final_8

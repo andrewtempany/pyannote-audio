@@ -60,8 +60,16 @@ class _FakeSpeakerDiarization:
 
     CACHED_SEGMENTATION = "training_cache/segmentation"
 
-    def __init__(self, clustering_threshold=0.6, num_chunks=40, num_speakers=3, dimension=192):
+    def __init__(self, clustering_threshold=0.6, num_chunks=40, num_speakers=3,
+                 dimension=192, batch_size=32):
         self.training = False
+        # Real SpeakerDiarization always sets both (speaker_diarization.py:236
+        # and :259), and both are part of the intermediate cache key because
+        # batch shape changes the float reduction order and so the arrays'
+        # values. The fake carries them for the same reason it mirrors
+        # _segmentation: so the key logic is exercised for real.
+        self.embedding_batch_size = batch_size
+        self.segmentation_batch_size = batch_size
         self.klustering = "VBxClustering"
         self.clustering = SimpleNamespace(threshold=clustering_threshold, Fa=0.07, Fb=0.8)
         self._num_chunks = num_chunks

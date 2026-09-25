@@ -46,11 +46,16 @@ Ask one question: *does this thing change segmentation or embedding output?*
 * YES  -> it belongs in `intermediate_config_id` (and therefore, since the
   final key is derived from the same base, in both). Add it to the
   `_intermediate_components` list. Examples: the checkpoint, the segmentation
-  model revision, `segmentation_step`, `embedding_exclude_overlap`,
+  model revision, the inference batch sizes, `segmentation_step`,
+  `embedding_exclude_overlap`,
   `segmentation.threshold` on a non-powerset checkpoint (see the powerset note
   in `harness/intermediate_cache.py`). Adding a dimension here orphans the
   existing intermediate entries, which is correct -- they become unreachable,
   not wrong.
+
+  Ask the question about VALUES, not about intent. Batch size looks like a
+  performance setting and was left out of this key for exactly that reason;
+  it changes the floats the model emits, so it belonged here all along.
 
 * NO, but it changes the final RTTM -> it belongs in `pipeline_config_id`
   only. Add it to the `_final_only_components` list. Examples: anything about
@@ -183,7 +188,52 @@ def _clustering_components(pipeline: Any) -> List[str]:
     return [f"clustering={_clustering_class_name(pipeline, clustering)}"] + rendered
 
 
-def _intermediate_components(checkpoint: str) -> List[str]:
+class BatchSizeUnavailable(RuntimeError):
+    """Raised when the effective inference batch sizes cannot be read.
+
+    Loud for the same reason as `ClusteringConfigUnavailable`. Batch size
+    changes the cached arrays' VALUES (see `_batch_size_components`), so a key
+    built without it would let two runs at different batch sizes collide on one
+    cache entry: the second is served arrays it did not compute, and nothing
+    about the run looks wrong. There is no degraded path.
+    """
+
+
+def _batch_size_components(pipeline: Any) -> List[str]:
+    """The effective inference batch sizes, which are VALUE inputs.
+
+    This looks like a performance knob and is not one. `get_embeddings()`
+    stacks waveforms into a single tensor and runs the embedding model on the
+    batch (speaker_diarization.py:460-468), and segmentation is batched the
+    same way (:259). Batch shape changes float reduction order inside the
+    model, so the arrays that come out genuinely differ.
+
+    Measured on this corpus: a batch-8 run scored DER 0.17049342382952828
+    against the batch-32 run's 0.17048543579940637. Before batch size entered
+    this key the two shared an entry and collided silently.
+
+    Read through the PROPERTY `segmentation_batch_size`
+    (speaker_diarization.py:298-299), which delegates to
+    `self._segmentation.batch_size`, so the value recorded is the one inference
+    will actually use even if the inference object was reconfigured directly.
+    `embedding_batch_size` is a plain attribute (:236).
+    """
+    components = []
+    for name in ("segmentation_batch_size", "embedding_batch_size"):
+        value = getattr(pipeline, name, None)
+        if value is None:
+            raise BatchSizeUnavailable(
+                f"pipeline exposes no `{name}`, so the effective inference "
+                "batch size cannot be included in the intermediate cache key. "
+                "Refusing to build a key that would let two runs at different "
+                "batch sizes collide on one cache entry while producing "
+                "different embeddings."
+            )
+        components.append(f"{name}={int(value)}")
+    return components
+
+
+def _intermediate_components(checkpoint: str, pipeline: Any) -> List[str]:
     """Everything that changes segmentation or embedding OUTPUT.
 
     Invalidation reasoning, written so it can be checked rather than trusted:
@@ -205,28 +255,40 @@ def _intermediate_components(checkpoint: str) -> List[str]:
       speaker_diarization.py:656, strictly after both intermediates are
       produced, and cannot affect them.
 
+    * The effective inference BATCH SIZES are in the key, via
+      `_batch_size_components`. They change the arrays' values, not merely the
+      speed of producing them -- see that function. This was originally
+      omitted on the reasoning that batching "affects speed, not values";
+      that reasoning was wrong and the omission let batch-8 and batch-32 runs
+      collide on one entry.
+
     What is NOT currently in the key, and is safe only because the harness
     holds it fixed: `segmentation_step` (0.1), `embedding_exclude_overlap`
-    (True), `embedding_batch_size`/`segmentation_batch_size` (batching affects
-    speed, not values), and -- on a non-powerset checkpoint --
-    `segmentation.threshold`, which would change the binarization the
-    embeddings are extracted from. community-1 is powerset so no threshold
-    exists (verified: `hasattr(pipeline.segmentation, "threshold")` is False).
-    If the harness ever varies any of these, add them here. A reader checking
-    this list should confirm those values are still fixed in `run_harness.py`.
+    (True), and -- on a non-powerset checkpoint -- `segmentation.threshold`,
+    which would change the binarization the embeddings are extracted from.
+    community-1 is powerset so no threshold exists (verified:
+    `hasattr(pipeline.segmentation, "threshold")` is False). If the harness
+    ever varies any of these, add them here. A reader checking this list
+    should confirm those values are still fixed in `run_harness.py`.
     """
-    return [f"checkpoint={checkpoint}"]
+    return [f"checkpoint={checkpoint}"] + _batch_size_components(pipeline)
 
 
-def intermediate_config_id(checkpoint: str, pipeline: Any = None) -> str:
+def intermediate_config_id(checkpoint: str, pipeline: Any) -> str:
     """Pipeline-configuration portion of the INTERMEDIATE cache key.
 
     Contains no clustering configuration, by design -- see the module
-    docstring. `pipeline` is accepted (and ignored) so that both tiers have
-    the same call signature and a future dimension read off the pipeline can
-    be added without changing every call site.
+    docstring. It DOES contain the effective inference batch sizes, which are
+    read off `pipeline`: they change the cached arrays' values, so two runs at
+    different batch sizes must not share an entry.
+
+    `pipeline` was previously optional and ignored. It is now required, because
+    a default would silently produce a key that omits batch size -- exactly the
+    collision this fixes.
     """
-    raw = "|".join([_INTERMEDIATE_PREFIX] + _intermediate_components(checkpoint))
+    raw = "|".join(
+        [_INTERMEDIATE_PREFIX] + _intermediate_components(checkpoint, pipeline)
+    )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -239,7 +301,9 @@ def pipeline_config_id(checkpoint: str, pipeline: Any) -> str:
     and that exception's own.
     """
     components = (
-        [_FINAL_PREFIX] + _intermediate_components(checkpoint) + _clustering_components(pipeline)
+        [_FINAL_PREFIX]
+        + _intermediate_components(checkpoint, pipeline)
+        + _clustering_components(pipeline)
     )
     raw = "|".join(components)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()

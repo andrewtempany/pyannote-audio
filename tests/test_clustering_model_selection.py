@@ -76,10 +76,15 @@ class _FakeSpeakerDiarization:
     the same way it would in production.
     """
 
-    def __init__(self, clustering="VBxClustering", **kwargs):
+    def __init__(self, clustering="VBxClustering", batch_size=32, **kwargs):
         self.klustering = clustering
         self._plda = SimpleNamespace(name="fake-plda")
         self.training = False
+        # Real __init__ sets both (speaker_diarization.py:236 and :259).
+        # They are part of the intermediate cache key because batch shape
+        # changes float reduction order and so the cached arrays' values.
+        self.embedding_batch_size = batch_size
+        self.segmentation_batch_size = batch_size
 
         try:
             Klustering = Clustering[clustering]
