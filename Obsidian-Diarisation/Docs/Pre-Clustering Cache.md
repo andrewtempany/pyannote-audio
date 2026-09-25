@@ -301,6 +301,18 @@ before this change lack both keys and must stay readable — the same precedent 
 now carries the real instantiated configuration. Without the human-readable form the hash is
 write-only: it distinguishes two runs but never says what they were.
 
+A third additive field, `inference_batch_sizes`, records the effective segmentation and
+embedding batch sizes (both 32 from the shipped `config.yaml`). It is read off the live pipeline
+via the `segmentation_batch_size` property (`speaker_diarization.py:298-299`), which delegates
+to `self._segmentation.batch_size`, so it reflects what inference actually used rather than what
+a flag requested, and it is coerced to `int` so a non-numeric value cannot fail the manifest
+write at the end of a completed run.
+
+**Practical consequence for sweeps:** batch size is part of the intermediate key, so lowering it
+(for example to fit a smaller GPU after an OOM) creates a *separate* cache identity rather than
+reusing the existing one. That is deliberate — the two are not interchangeable — but it means
+such a run pays full GPU cost again. Decide the batch size before populating the cache.
+
 ## Existing cache entries
 
 Changing `pipeline_config_id` orphans all ~128 pre-existing `.harness_cache` entries. This is
@@ -347,10 +359,36 @@ reaching the read) makes those tests fail rather than pass.
   it is comparing against. Asserts zero inference calls on the warm side, so a pass cannot mean
   "recomputed and happened to match". Paired with a sensitivity test proving the byte comparison
   can actually fail. **The real 16-meeting corpus run is separate from this work.**
-- **Intermediate-tier wall clock** — isolated by giving both arms a fresh RTTM cache dir; 0.969 s
-  cold vs 0.031 s warm over 8 files. The percentage is an artefact of the simulated inference
-  cost, not a prediction of real GPU savings; the real figure needs a GPU run.
-- **On-disk size** — ≈272 MB for 16 meetings, extrapolated as described above.
+- **Intermediate-tier wall clock** — isolated in unit tests by giving both arms a fresh RTTM
+  cache dir; 0.969 s cold vs 0.031 s warm over 8 files. That percentage is an artefact of the
+  simulated inference cost, not a prediction of GPU savings.
+
+  **On real hardware** (16 AMI IHM meetings, RTX 3060, batch 32):
+
+  | Arm | Wall clock |
+  | --- | --- |
+  | Fully cold (both tiers empty) | **2238 s** |
+  | Intermediates warm, final-RTTM cache emptied | **33 s** |
+
+  The warm arm had its RTTM cache emptied so `Runner.run()` could not short-circuit, which is
+  the only comparison in which the intermediate tier is on the critical path. Both scored
+  DER 0.17048543579940637.
+
+- **On-disk size** — **53 MB measured** for 16 meetings (16 `.npz`, segmentation `float32`
+  `(chunks, 589, 3)` plus embeddings `float32` `(chunks, 3, 256)`). The ticket's pre-build
+  extrapolation of ~272 MB was about 5x high: it assumed uncompressed sizes with a compression
+  ratio measured on synthetic arrays, and real segmentation posteriors compress far better
+  because they saturate near 0 and 1.
+
+- **Batch size in the intermediate key** — three tests shown failing on the pre-change code
+  (both keys byte-identical at batch 8 and batch 32), passing after, plus a stability test
+  confirming the key does not move at a fixed batch size.
+
+- **The key change is value-neutral** — the cold rebuild after adding batch size to the key
+  (`runs/20260925T101811Z-db977741.json`, 2238 s) reproduced DER 0.17048543579940637 and all
+  twelve summary metrics bit-identically against the previous cold run. Its tally read
+  `0 full hits, 0 partial, 16 misses, 16 writes`, so it was genuinely cold rather than quietly
+  served from the orphaned entries.
 
 ## See also
 

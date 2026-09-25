@@ -1,7 +1,18 @@
 ---
-status: in-progress
+status: done
 created: 2026-09-25
+completed: 2026-09-25
+superseded_by: "[[Pre-Clustering Cache]]"
 ---
+
+> **DONE — folded into [[Pre-Clustering Cache]], which is now the reference doc for this work.**
+> Per CLAUDE.md the completed ticket is not kept alongside the doc, so **this file should be deleted**;
+> it is retained only until the coordinator removes it. Nothing here is unique to it any more.
+>
+> All seven acceptance criteria met. Final cold rebuild after the batch-size key fix:
+> `runs/20260925T101811Z-db977741.json`, 2238 s, DER **0.17048543579940637** (exact), all twelve
+> summary metrics bit-identical to the previous cold run, cache tally `0 full hits, 16 misses,
+> 16 writes`. 53 MB on disk for 16 meetings.
 
 # Pre-clustering segmentation and embedding cache
 
