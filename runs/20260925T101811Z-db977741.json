@@ -1,0 +1,43 @@
+{
+  "run_id": "20260925T101811Z-db977741",
+  "created_at": "2026-09-25T10:18:11.891955+00:00",
+  "run_config": {
+    "pipeline_config_id": "241ecd865d157bd823106180f9691005b3f6245043a8fadb1c62480b9aedbced",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "baseline",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "Phase 1 close-out: cold baseline after adding inference batch size to the intermediate cache key. Both keys moved (intermediate c636fc56->9d14609c, final 190b62c3->241ecd86), orphaning all previous entries, so this is genuinely cold in both tiers and repopulates both. Batch 32, the shipped config.yaml value. Must reproduce DER 0.17048543579940637 exactly.",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "c8503146",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    }
+  },
+  "summary": {
+    "der": 0.17048543579940637,
+    "der_overlap_system": 0.3339417838704696,
+    "der_overlap_assigned": 0.219454688210064,
+    "jer": 0.22186961360102092,
+    "counting_mae": 0.25,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2433.11687500005,
+    "region_t_minus_d": 1393.9391249999528,
+    "region_d_minus_t": 382.94937499995154,
+    "missed_detection": 2925.049468749914,
+    "false_alarm": 1099.0743744999131,
+    "confusion": 1212.152875000019
+  },
+  "duration_seconds": 2238.2969999999987
+}
