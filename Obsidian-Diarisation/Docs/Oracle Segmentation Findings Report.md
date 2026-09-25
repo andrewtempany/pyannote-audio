@@ -176,6 +176,23 @@ populated. Charting by a single column name silently drops runs.
 `aa8fbfa4` (baseline), `32241285` (nearest_centroid), `1db2ba34` / `c93fb9f9` (oracle
 assignment — valid mechanism, see item 3), `d3ef4437` and `a9c41646` (earlier baselines).
 
+**Provenance detail for `1db2ba34` / `c93fb9f9`**, preserved here when the
+`oracle-segmentation-seam-no-op` ticket was folded into documentation. Both manifests record
+`git_commit = 3d3d9fa6`, while their own notes say "post cache-key fix" and the commit
+containing that fix (`a4a3101a`) is *newer* in the log. So the fix was almost certainly
+uncommitted when they ran, and `3d3d9fa6` does not describe the code that produced them.
+
+Their numbers are self-consistent and trusted — a broken injection reproduces baseline exactly,
+as `3c8deb71` and `e9f25911` did, and these moved DER (17.05% → 16.08% all_pairs, → 16.58%
+overlap_degraded) with both overlap metrics shifting. But the exact code state is not
+recoverable from the manifest. **Re-run under a clean committed tree before citing externally**
+(item 3 above).
+
+Also recorded from that ticket: `oracle_assignment` runs use a **different mechanism** from
+oracle segmentation — the post-clustering refinement hook (`refinement_strategy: oracle`,
+`segmentation_source_id: baseline`) — and never touch the `CACHED_SEGMENTATION` seam, which is
+why the seam defect does not reach them.
+
 ---
 
 ## 7. Confidence assessment
