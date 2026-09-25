@@ -308,6 +308,11 @@ correct and expected: they were keyed on the old scheme and simply stop being hi
 **unreachable, not wrong**, and are deliberately left in place — including the 16 stale
 pre-seam-fix oracle RTTMs.
 
+Adding the inference batch sizes to the intermediate key (2026-09-25) orphaned that tier again:
+`c636fc56…` → `9d14609c…`, and the final key `190b62c3…` → `241ecd86…` with it, since the final
+key is built on the same base. Both tiers were repopulated by one cold run. Orphaned entries
+are again left in place.
+
 ## Files
 
 - `harness/cache_id.py` — both keys, the generic hyperparameter extraction, the human-readable
@@ -321,7 +326,8 @@ pre-seam-fix oracle RTTMs.
   overwrites a key already on `file`.
 - `run_harness.py` — builds both ids from the live pipeline, wires the cache, prints the tally,
   records the manifest fields, adds `--no-intermediate-cache`.
-- `tests/test_pipeline_config_id.py` (13 tests) — both key directions.
+- `tests/test_pipeline_config_id.py` (17 tests) — both key directions, plus batch size in
+  the intermediate key only.
 - `tests/test_intermediate_cache.py` (15 tests) — persistence, the seam, byte-identical warm vs
   cold, tier isolation.
 

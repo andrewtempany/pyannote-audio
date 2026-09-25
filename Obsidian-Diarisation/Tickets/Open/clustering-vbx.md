@@ -75,6 +75,41 @@ this epic would add.
 which makes it the direct lever on the speaker-counting behaviour this project has been
 tracking. Its range spans three orders of magnitude, so sweep it **log-spaced**, not linearly.
 
+> **Direction VERIFIED from the update equations, 2026-09-25 — higher `Fb` means FEWER
+> speakers.** Checked because the counting hypothesis leans on it and the reading had come from
+> the parameter's one-line description ("Speaker regularization coefficient Fb controls the
+> final number of speakers", `vbx.py:51`), which does not state a direction.
+>
+> `Fb` appears in exactly two places in the VB loop, always as the ratio `Fa/Fb`
+> ([vbx.py:109-112](../../../src/pyannote/audio/utils/vbx.py)):
+>
+> ```python
+> invL  = 1.0 / (1 + Fa / Fb * gamma.sum(axis=0, keepdims=True).T * Phi)  # (17)
+> alpha = Fa / Fb * invL * gamma.T.dot(rho)                               # (16)
+> ```
+>
+> `alpha` is the speaker mean and `invL` its posterior variance. Raising `Fb` shrinks `Fa/Fb`,
+> which drives `invL` toward 1 (maximum uncertainty) and scales `alpha` toward 0 (means collapse
+> to the prior). Evaluated at Fa=0.07 with the other terms held fixed, alpha falls monotonically
+> 0.199 -> 0.038 and invL rises 0.003 -> 0.811 as Fb goes 0.01 -> 15.0.
+>
+> Collapsed means make the per-speaker likelihoods at `log_p_` (:113-115, eq 23) converge, so
+> responsibilities `gamma` (:125) flatten and `pi = sum(gamma)` (:126-128) spreads instead of
+> concentrating. Speakers stop being separable and are absorbed. The surviving count is read as
+> `sp > 1e-7` at [clustering.py:621](../../../src/pyannote/audio/pipelines/clustering.py).
+>
+> **So the hypothesis stands as written and needs no rewrite.** Shipped `Fb = 0.8` sits near the
+> bottom of `[0.01, 15.0]`, i.e. WEAK regularisation / low reluctance to add a speaker, which is
+> consistent with the over-counting seen under oracle segmentation
+> ([[Oracle Segmentation Findings Report]] §4). The sweep should therefore expect speaker count
+> to fall monotonically as `Fb` rises.
+>
+> Caveat worth recording: a synthetic end-to-end check of `cluster_vbx` did NOT reproduce the
+> merge behaviour, because the fixture never converged to distinct speakers (effective count
+> stayed at the initialisation of 10 regardless of `Fb`). The direction above is established
+> from the equations and from the monotonic behaviour of (16)/(17), NOT from a working
+> end-to-end simulation. A real sweep is what will confirm it on this corpus.
+
 **The shipped defaults are already known** (this is the default method, so they were recorded
 when the cache-key work read them off the live pipeline):
 
