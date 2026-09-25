@@ -142,21 +142,39 @@ Under oracle segmentation every reference speaker has speech by construction. So
 constraint. Over-clustering costs DER through confusion (a pair labelled with the wrong one
 of several clusters belonging to the same speaker), not through unmappability.
 
-### What actually blocks it
+### What actually blocks it — CORRECTED
 
-The residual sits in `no_reference_overlap`: **56,998 pairs — 44.9% of all pairs** in Run 1.
-These are pairs whose temporal support intersects no reference speaker at all, so there is no
-dominant reference speaker to relabel toward and the strategy leaves them alone by design.
+> **This section previously drew a strong planning conclusion from a misread counter. The
+> conclusion was wrong and is retracted in full.** The original text claimed the 56,998
+> `no_reference_overlap` pairs were tracks over silence, that this reflected "the frame-level
+> active-speaker mask marking speech in regions the reference scores as silence", and that "a
+> learned assignment classifier inherits this ceiling exactly as the oracle does". All three
+> claims are false. The boundary-distance analysis that falsified them is
+> [[unreachable-pair-boundary-distance]].
 
-Because oracle segmentation takes its boundaries from the reference, this is *not* boundary
-noise. It is the frame-level active-speaker mask marking speech in regions the reference
-scores as silence for every speaker.
+`_dominant_reference_speaker` returned `None` for two unrelated conditions — an empty support
+and a support overlapping no reference speaker — and the strategy funnelled both into
+`no_reference_overlap`. Reconstructed over all 16 files:
 
-**The consequence for planning is sharper than the DER number alone.** The 1.68 pt gap to the
-floor is not an assignment problem a classifier could learn its way out of. A *labelling*
-strategy cannot reach these pairs however good its labels, because the thing that is wrong
-about them is not which speaker they were assigned to — it is that they exist at all. A
-learned assignment classifier inherits this ceiling exactly as the oracle does.
+- **Empty support — no active frames at all: 54,888 pairs, 44.1%** of the 124,576 reconstructed
+  (chunk, speaker) slots, and **96.3% of the recorded 56,998**. These are unused slots on the
+  fixed-width `local_num_speakers` axis: every chunk with fewer active speakers than slots
+  contributes empty pairs. A property of the tensor layout, not of segmentation quality.
+- **Genuinely silence-dwelling pairs: 6**, totalling **0.2024 s** across 16 meetings — 0.01% of
+  the recorded figure.
+
+(The two denominators differ because the reconstruction derived file duration from the
+reference extent while the run used audio duration; see that analysis's reconciliation section.
+The ~2,349-pair gap is itself trailing silence, which reinforces the finding.)
+
+**Oracle segmentation does not produce meaningful tracks over silence.** The premise of the
+original passage was false.
+
+**The 1.68 pt gap to the floor is therefore unexplained.** No mechanism in this document
+accounts for it. The leading candidate — that whole-pair relabelling cannot split a support
+spanning a speaker change, so a pair covering two speakers gets one label whichever speaker
+dominates — is **untested**, and is recorded here only to say what has not been ruled out. It
+must not be cited as the explanation. Testing it is separate work.
 
 ### Full pair disposition
 
@@ -170,6 +188,14 @@ learned assignment classifier inherits this ceiling exactly as the oracle does.
 
 The four paths partition exactly in both runs, so this is a complete account of every pair
 rather than a sample — which is what makes the zero trustworthy rather than merely unobserved.
+
+> **Note on `no_reference_overlap`.** The counts above are correct as recorded; only their
+> interpretation was wrong. This path conflated two dispositions — pairs with no active frames
+> (96.3% of the 56,998) and pairs genuinely in ground-truth silence (6 pairs). The counter has
+> since been split into `empty_support` and `no_reference_overlap`, so runs after that change
+> report five paths rather than four. See [[Oracle Assignment Strategy]]. Expect
+> `empty_support = 0` under `overlap_degraded` scope: the scope check runs before the
+> dominant-speaker call, so empty-support pairs are absorbed into `out_of_scope` there.
 
 `no_reference_overlap = 0` in Run 2 is structural too: any pair passing
 `_is_overlap_degraded` necessarily has reference overlap, so the narrower scope cannot reach
@@ -311,9 +337,17 @@ Full harness suite: 142 passed, 1 skipped (pre-existing).
 3. Cache-key separation was verified *empirically before launching*, not assumed: `identity`,
    `oracle:all_pairs` and `oracle:overlap_degraded` produce three distinct keys, so neither
    run could have been served the earlier oracle-segmentation run's hypotheses.
-4. The four pair-disposition paths partition exactly in both runs.
+4. The four pair-disposition paths partition exactly in both runs. (Partition-exactness is a
+   completeness property only. It says every pair is accounted for once; it says nothing about
+   whether each path means what its name suggests — which is exactly how §4's error survived
+   this checklist.)
 5. The `unmapped_speaker = 0` explanation was verified against `optimal_mapping` directly
    rather than inferred from the counts alone.
+
+**Not confident in any mechanism for the 1.68 pt residual.** §4's original explanation was
+falsified after this assessment was first written. The DER figures above are unaffected — they
+were measured, not inferred from the counter — but the planning conclusion drawn from them was
+withdrawn. See §4.
 
 **Known limitations, stated plainly:**
 
@@ -350,6 +384,20 @@ classifier inherits this ceiling would not have been available.
 because it can be shown to be wrong in a way that teaches something.** Here the number was
 merely off; the mechanism was absent, and finding that out redirected the planning conclusion
 more than the DER figure did.
+
+**The second half of the lesson, learned later and more expensively: a counter is only as good
+as the distinction it draws.** The same instrumentation that made `unmapped_speaker = 0`
+knowable also produced `no_reference_overlap = 56,998`, and that number was read as "tracks
+over silence" when 96.3% of it was empty tensor slots. §4's original conclusion — confidently
+argued, and wrong — rested entirely on it.
+
+Keeping four paths apart was right. But the granularity of a counter is a claim about which
+distinctions matter, and that claim needs checking just as the mechanism did. The failure mode
+is specific and worth naming: **a single counter whose name describes only one of the
+conditions that reaches it.** `_dominant_reference_speaker` returned `None` for two unrelated
+reasons; the name documented the interesting one and silently absorbed the common one.
+Partition-exactness could not catch this, because the paths did partition — completeness and
+correctness of meaning are different properties, and only the first was being verified.
 
 ---
 

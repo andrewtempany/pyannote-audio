@@ -41,6 +41,56 @@ and speaker-count decisions), not for an assignment intervention specifically.
 5. Assign the cluster that maps to that speaker. If no cluster maps to it, leave the pair
    unchanged — this is where the honest-ceiling constraint is enforced.
 
+## Pair disposition counters
+
+The returned closure carries a `counts` dict (`_new_counts`) tallying how each
+(chunk, local_speaker) pair was disposed of. It is reset on every call, so it always describes
+the most recent invocation rather than accumulating across files. `run_harness.py` sums it
+across files and logs it; it is deliberately not written to the manifest, since explaining a
+surprising DER does not justify a schema change.
+
+**Five paths, which partition every pair exactly:**
+
+| Path | Meaning |
+|---|---|
+| `relabelled` | Reassigned to the cluster mapped to its dominant reference speaker. |
+| `out_of_scope` | Under `overlap_degraded`, not predominantly overlapping speech. Left alone. |
+| `empty_support` | No active frames at all. Never a candidate for assignment. |
+| `no_reference_overlap` | Has active frames, but intersects no reference speaker — a track in ground-truth silence. |
+| `unmapped_speaker` | Dominant reference speaker maps to no cluster the pipeline produced. Left alone rather than inventing a cluster. |
+
+Partition-exactness is what makes these a complete account rather than a sample — it is how
+`unmapped_speaker = 0` became trustworthy rather than merely unobserved. Under oracle
+segmentation every reference speaker has speech by construction, so that zero is *structural*.
+
+### Why `empty_support` and `no_reference_overlap` are separate
+
+They were originally one counter, because `_dominant_reference_speaker` returned `None` for
+both conditions and the call site could not tell them apart. The combined figure (56,998 pairs)
+was then read as "tracks over silence" and a planning conclusion drawn from it. In fact 96.3%
+of it was pairs with **no active frames** — unused slots on the fixed-width `local_num_speakers`
+axis, a property of the tensor layout rather than of segmentation quality. Genuinely
+silence-dwelling pairs numbered **6**, totalling 0.2024 s across 16 meetings. See §4 of
+[[Oracle 2x2 Combined Cells]] for the correction and [[unreachable-pair-boundary-distance]] for
+the analysis.
+
+The split is carried by a module-level `EMPTY_SUPPORT = object()` sentinel returned for
+`len(support) == 0`, with `None` retained for the no-overlap case. A bare `object()` rather than
+a string sentinel because reference labels come from RTTMs outside our control and must not be
+able to collide with it.
+
+**Expect `empty_support = 0` under `overlap_degraded` and roughly 44% under `all_pairs`.** This
+asymmetry is correct, not a bug: `_is_overlap_degraded` also returns `False` on an empty
+support, and the scope check runs *before* the dominant-speaker call, so under
+`overlap_degraded` empty-support pairs are absorbed into `out_of_scope` and never reach the
+`empty_support` branch. Asserted deliberately in
+`tests/test_refinement_counter_split.py::test_empty_support_reads_zero_under_overlap_degraded_scope`.
+
+**Lesson carried forward:** a counter is only as good as the distinction it draws. The failure
+mode here was specific — *a single counter whose name described only one of the conditions that
+reached it* — and partition-exactness could not catch it, because the paths did partition.
+Completeness and correctness-of-meaning are different properties.
+
 ### Why a factory, not a plain strategy
 
 [[Post-Clustering Refinement Hook]]'s interface is fixed at

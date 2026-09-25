@@ -76,18 +76,61 @@ empty `extra_pipeline_steps: []`, and `config.{split,condition,der_collar,der_sk
 already has: a mid-run exception (e.g. `OracleSegmentation`'s `NotImplementedError`)
 leaves zero manifest files, same as it leaves zero report files.
 
-`clustering_model` has no real source yet — nothing in `harness/` or the pipeline object
-currently exposes a clustering identifier. Until real clustering-model selection exists,
-the `__main__` CLI block in `run_harness.py` hardcodes a literal (`"pyannote-default"`)
-for it, the same way it already hardcodes the pipeline checkpoint string. There is no
-`--clustering-model` CLI flag yet; that belongs to whichever future ticket implements
-real clustering-model selection. The CLI does have `--runs-dir` (default `"runs"`).
+### `clustering_model`: what actually ran, not what was asked for
+
+`clustering_model` was once a hardcoded literal (`"pyannote-default"`), which recorded
+nothing. It now holds the **instantiated** clustering configuration in readable form:
+
+```json
+"clustering_model": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)"
+```
+
+The value is derived from the **live pipeline object** via
+`harness/cache_id.clustering_config_description(pipeline)`, never from the
+`--clustering-model` flag string. That distinction is the point rather than a detail. A
+flag that is parsed, recorded and then never reaches the pipeline is this project's
+signature failure mode: the run completes, the manifest validates, and the numbers are
+plausible because they are the *default* condition's numbers. Reading the instantiated
+object means the manifest cannot claim a model that did not run. The run also prints
+both, so a mismatch is visible at a glance:
+
+```
+clustering: VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6) (requested: pyannote-default)
+```
+
+Note the recorded form names the class and **every** hyperparameter the class declares,
+not only the ones overridden — a manifest recording just the swept parameter would not
+distinguish two sweeps that varied different parameters from the same defaults.
+
+Two further fields are written alongside it, both **additive** and deliberately *not* in
+`REQUIRED_RUN_CONFIG_FIELDS`, so existing manifests and callers stay valid:
+
+- `clustering_config` — the same readable description.
+- `intermediate_config_id` — the pre-clustering cache key, which excludes clustering by
+  design. See [[Pre-Clustering Cache]].
+
+`pipeline_config_id` itself is no longer the bare checkpoint string: it is a hash of the
+checkpoint plus the clustering class plus every instantiated hyperparameter. The readable
+description is recorded next to it because a hash alone is write-only — it tells a future
+reader that two runs differed, never what they were.
+
+### CLI flags
+
+- `--clustering-model` — closed vocabulary (`pyannote-default`, `agglomerative`, `vbx`,
+  `kmeans`), enforced by `argparse` `choices` and again in `build_pipeline`. Defaults to
+  `pyannote-default`, so omitting it reproduces prior behaviour exactly.
+- `--clustering-param NAME=VALUE` — repeatable hyperparameter override.
+- `--runs-dir` (default `"runs"`).
+
+See [[Evaluation Harness]] for the vocabulary, the two override seams, and why `kmeans`
+is selectable but not runnable.
 
 ## Non-goals (still true)
 
 - No new scoring math — consumes the reporter's summary output as-is.
-- No implementation of clustering-model selection or the planned multispeaker-detection
-  step — only the fields to record which ones were used.
+- No implementation of the planned multispeaker-detection step — only the field to
+  record whether it was used. (Clustering-model selection *was* since implemented; see
+  `clustering_model` above and [[Evaluation Harness]].)
 - No SQLite/DB.
 - No changes to `harness/reporter.py`'s existing output shape — the manifest is additive.
 

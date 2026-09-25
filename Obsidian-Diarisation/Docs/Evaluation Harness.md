@@ -108,6 +108,134 @@ Note `--condition` (AMI mic condition, e.g. `IHM`/`SDM`) and `--run-condition` (
 
 To call the harness programmatically instead of via the CLI, use `run_harness.run_harness(config, pipeline, pipeline_config_id, segmentation_source, per_file_csv_path, summary_path)` directly — this is the tested surface; the `argparse` CLI wrapper is a thin, untested convenience over it (no credentialed test environment was available at build time).
 
+## Clustering model selection
+
+The pipeline's clustering stage is selectable per run, via two flags that reach the
+pipeline through **two different seams**. Understanding why they differ is the whole
+of this section.
+
+```bash
+python run_harness.py --data-root /path/to/ami \
+  --clustering-model vbx \
+  --clustering-param threshold=0.7 --clustering-param Fa=0.1
+```
+
+### Vocabulary
+
+`--clustering-model` takes a closed vocabulary, defined as `VALID_CLUSTERING_MODELS`
+in `harness/run_manifest.py` alongside the other controlled vocabularies:
+
+| Value | Class | Notes |
+|---|---|---|
+| `pyannote-default` | `VBxClustering` | The default. Whatever the checkpoint ships. |
+| `vbx` | `VBxClustering` | The same class, chosen explicitly. |
+| `agglomerative` | `AgglomerativeClustering` | |
+| `kmeans` | `KMeansClustering` | Selectable but **not runnable** - see below. |
+
+**`pyannote-default` is `VBxClustering`, not `AgglomerativeClustering`.** Several
+project notes claimed otherwise; that claim is false. community-1 ships
+`clustering: VBxClustering` with `threshold: 0.6, Fa: 0.07, Fb: 0.8`, and those are the
+values behind the recorded baseline DER `0.17048543579940637`. It follows that
+`pyannote-default` and `vbx` are **one condition, not two**: same class, same
+hyperparameters, same cache key. They differ only in whether the choice is stated
+explicitly, which matters for reading a sweep's manifests, not for what runs.
+
+`OracleClustering` is a real `Clustering` enum member but is deliberately **absent**
+from the vocabulary. Its absence is written down in `run_manifest.py` precisely
+because adding it would be a one-line change: an oracle clustering available as an
+ordinary sweep point would produce impossibly good numbers under a manifest
+indistinguishable from any other run.
+
+### The two seams
+
+From `src/pyannote/audio/core/pipeline.py:275-294`, the class and its hyperparameters
+are fixed at different moments:
+
+- **The class, at construction.** `from_pretrained` reads
+  `config["pipeline"]["params"]` and calls `Klass(**params)`, so the clustering class
+  is decided before the object exists. `SpeakerDiarization.__init__`
+  (`speaker_diarization.py:283-295`) then does three things with the name: the
+  `Clustering` enum lookup, the `VBxClustering`-only special case that supplies
+  `self._plda` (VBx's `__init__` takes a positional `plda` with no default, so it
+  cannot be built from a bare name), and setting `_expects_num_speakers` from
+  `clustering.expects_num_clusters`.
+
+  Selection therefore happens at construction, **not** by assigning
+  `pipeline.clustering` on a loaded pipeline. That assignment sets one of the three
+  and leaves `klustering` and `_expects_num_speakers` describing the previous class.
+  Nothing crashes; the pipeline simply disagrees with itself, and
+  `_expects_num_speakers` governs whether speaker counts are plumbed through.
+
+- **The hyperparameters, via `pipeline.instantiate()`.** This is the sanctioned seam
+  and already how `0.6/0.07/0.8` reach the default VBx instance, so a sweep point does
+  not need the pipeline rebuilt. It also fails loudly for free: base
+  `Pipeline.instantiate` raises `ValueError: parameter '<name>' does not exist`, so a
+  typo cannot be silently ignored. `VBxClustering` overrides `__call__` rather than
+  `cluster` (`clustering.py:572`), but that is irrelevant to this route -
+  `instantiate` acts on the base class's descriptor machinery, not on the clustering
+  entry point. Verified rather than assumed.
+
+### How the class override is applied
+
+`Pipeline.from_pretrained` has a **fixed signature** (`checkpoint, revision,
+hparams_file, subfolder, token, cache_dir`) with no `**kwargs`, so there is no seam
+for overriding a construction parameter - passing `clustering=` raises `TypeError`.
+Since editing `src/pyannote/` is out of scope,
+`run_harness._from_pretrained_with_clustering` reproduces `from_pretrained`'s own
+sequence over the shipped config: read `config.yaml`, swap
+`pipeline.params.clustering`, `expand_subfolders` against the real checkpoint id (so
+`$model/segmentation`, `$model/embedding` and `$model/plda` still resolve - handing
+`from_pretrained` a config *dict* instead would set `model_id = Path.cwd()` and break
+that), construct `SpeakerDiarization(**params)`, then apply the shipped `params`.
+
+**The default condition never goes through that helper.** `build_pipeline` branches:
+when the requested class is the shipped one, it makes the untouched pre-ticket
+`Pipeline.from_pretrained(checkpoint, token=...)` call. That branch is what guarantees
+the baseline condition and its cache key cannot have moved.
+
+One deliberate deviation from the library: the shipped config instantiates VBx's
+`threshold`/`Fa`/`Fb`, and `instantiate` raises on a parameter the target class does
+not declare - so handing agglomerative VBx's `Fa` would make every non-default
+selection crash on load. Shipped defaults are therefore filtered to the names the
+target class actually declares, and the drop is **printed**, not silent:
+
+```
+note: AgglomerativeClustering does not declare Fa, Fb -- shipped value(s) not applied
+```
+
+That matters because `threshold` exists on both VBx and agglomerative with *different*
+meanings and ranges (`Uniform(0.5, 0.8)` vs `Uniform(0.0, 2.0)`), so a run that
+inherits it is not running that class's own default. An explicit `--clustering-param`
+is applied afterwards and always wins.
+
+### `kmeans` is selectable but not runnable
+
+`KMeansClustering.expects_num_clusters` is `True`, and `SpeakerDiarization.apply()`
+requires `num_speakers` in that case (`speaker_diarization.py:600-607`). The harness
+builds `file` as `{"uri", "audio"}` and passes no count, so `build_pipeline` **refuses
+it at selection time** with a `ValueError` naming the class and the missing count.
+Deciding where *k* comes from - oracle count, fixed, or estimated - is a separate
+ticket.
+
+Refused at selection rather than left to the library for two reasons. The library
+would raise part-way through the corpus, after minutes of GPU work. And more
+seriously: `Runner.run()` sets `pipeline.training = True`, and the library's guard
+falls back to `len(file["annotation"].labels())` when an annotation is present. Today
+the harness keeps `annotation` off the file dict so that fallback cannot fire - but if
+it ever did, a kmeans run would silently take its speaker count from the ground truth
+and report an oracle-count result under an ordinary baseline manifest.
+`harness/segmentation.py` already guards the oracle-segmentation path this way; this
+covers the baseline path too.
+
+### Cache keys
+
+Clustering configuration is part of the **final-hypothesis** cache key and deliberately
+absent from the **intermediate** key - see [[Pre-Clustering Cache]], which owns that
+key and its reasoning. The practical consequence for a sweep: every point gets its own
+RTTM, while all points share one cached copy of segmentation and embeddings. Verified
+on the real pipeline: `threshold` 0.6 -> 0.7 moves the final key
+(`190b62c3...` -> `d12f731e...`) while the intermediate key stays `c636fc56...`.
+
 ## What the harness deliberately does not do
 
 - No training, fine-tuning, or edits under `models/`/`tasks/`.
@@ -115,6 +243,8 @@ To call the harness programmatically instead of via the CLI, use `run_harness.ru
 - Does not use the `pyannote-audio benchmark` CLI (it can't produce overlap-region DER or counting error, and has no oracle seam).
 - Does not implement oracle-segmentation injection logic yet — `OracleSegmentation` is an interface + documented stub (`NotImplementedError`). See [[Segmentation Source Interface]].
 - Does not download AMI. The data root is supplied by the caller; a missing/empty root fails with a clear error rather than attempting a fetch.
+- Does not supply `num_speakers`, so clustering methods requiring a speaker count (`KMeansClustering`, `OracleClustering`) cannot be run - selection refuses them rather than failing mid-corpus. See "Clustering model selection" above.
+- Does not run clustering sweeps. `--clustering-model`/`--clustering-param` make them possible; choosing and running the points is separate work.
 
 ## Verification (how "done" was confirmed for this doc conversion)
 
