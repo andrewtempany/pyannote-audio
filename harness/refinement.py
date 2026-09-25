@@ -116,12 +116,28 @@ def _reconstruct_hypothesis(hard_clusters: np.ndarray, segmentations) -> Annotat
     return hypothesis
 
 
-def _dominant_reference_speaker(support: Timeline, reference: Annotation) -> Optional[str]:
-    """The reference speaker with greatest total overlap with `support`, or
-    None if `support` is empty or overlaps no reference speaker at all.
+# Returned by `_dominant_reference_speaker` when the pair has no active frames
+# at all, as distinct from having frames that intersect no reference speaker.
+# Both used to come back as None, and the caller could not tell them apart --
+# which is how 54,900-odd empty tensor slots came to be reported as tracks
+# over silence. A sentinel object (not a string) so it can never collide with
+# a real reference speaker label.
+EMPTY_SUPPORT = object()
+
+
+def _dominant_reference_speaker(support: Timeline, reference: Annotation):
+    """The reference speaker with greatest total overlap with `support`.
+
+    Three distinct returns, because the caller needs to tell them apart:
+      - `EMPTY_SUPPORT` -- `support` has no active frames. The pair was never
+        a candidate for assignment; typically an unused slot on the
+        fixed-width `local_num_speakers` axis.
+      - `None` -- `support` is non-empty but intersects no reference speaker,
+        i.e. a track sitting in ground-truth silence.
+      - a label -- the reference speaker with the greatest total overlap.
     """
     if len(support) == 0:
-        return None
+        return EMPTY_SUPPORT
 
     cropped = reference.crop(support, mode="intersection")
     best_speaker = None
@@ -148,18 +164,37 @@ def _is_overlap_degraded(support: Timeline, reference: Annotation) -> bool:
 
 
 def _new_counts() -> Dict[str, int]:
-    """A fresh tally of the four ways the oracle loop can dispose of a pair.
+    """A fresh tally of the five ways the oracle loop can dispose of a pair.
 
-    Kept as four separate paths rather than one skip total because they mean
-    different things diagnostically. `unmapped_speaker` in particular is the
-    path that holds DER off its theoretical floor -- the dominant reference
-    speaker maps to no cluster the pipeline produced, so the pair can't be
-    relabelled without inventing a cluster -- and collapsing it into a
-    generic skip count would discard the most informative number.
+    The paths partition every pair exactly, which is what makes them a
+    complete account rather than a sample -- and is how `unmapped_speaker = 0`
+    became trustworthy rather than merely unobserved. Under oracle
+    segmentation every reference speaker has speech by construction, so that
+    zero is structural.
+
+    A counter is only as good as the distinction it draws, though.
+    `empty_support` and `no_reference_overlap` were originally one counter,
+    and the combined figure was read as "tracks over silence" when 96.3% of it
+    was empty tensor slots -- a property of the fixed-width
+    `local_num_speakers` axis, not of segmentation quality. They are separate
+    now:
+
+      - `empty_support` -- no active frames. Never a candidate for assignment.
+      - `no_reference_overlap` -- has active frames, but intersects no
+        reference speaker. The genuinely silence-dwelling case: 6 pairs
+        totalling 0.2024 s across the 16-meeting test split.
+
+    Expect `empty_support` to read 0 under `overlap_degraded` scope and
+    roughly 44% under `all_pairs`. That asymmetry is correct, not a bug:
+    `_is_overlap_degraded` also returns False on an empty support, and the
+    scope check runs before the dominant-speaker call, so under
+    `overlap_degraded` empty-support pairs are absorbed into `out_of_scope`
+    and never reach the `empty_support` branch.
     """
     return {
         "relabelled": 0,
         "out_of_scope": 0,
+        "empty_support": 0,
         "no_reference_overlap": 0,
         "unmapped_speaker": 0,
     }
@@ -181,7 +216,7 @@ def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs")
     `pipeline.refinement` to the result before running that file.
 
     The returned closure carries a `counts` dict recording how each pair was
-    disposed of -- see `_new_counts` for the four paths and why they're kept
+    disposed of -- see `_new_counts` for the five paths and why they're kept
     apart. It's reset on every call, so it always describes the most recent
     invocation rather than accumulating across files.
     """
@@ -231,7 +266,14 @@ def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs")
                     continue  # not in scope for this oracle_scope -- leave unchanged
 
                 dominant_speaker = _dominant_reference_speaker(support, reference)
+                if dominant_speaker is EMPTY_SUPPORT:
+                    # No active frames -- an unused slot on the fixed-width
+                    # local_num_speakers axis. Never a candidate for
+                    # assignment, so not evidence about segmentation quality.
+                    counts["empty_support"] += 1
+                    continue
                 if dominant_speaker is None:
+                    # Has frames, but sits in ground-truth silence.
                     counts["no_reference_overlap"] += 1
                     continue  # no reference overlap at all -- leave unchanged
 

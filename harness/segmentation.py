@@ -78,13 +78,31 @@ class OracleSegmentation(SegmentationSource):
     (even on failure), so a failed/aborted run never leaves the pipeline
     permanently in training mode.
 
+    The reference is handed to `oracle_segmentation()` on a shallow copy of
+    `file`, so `file` itself never carries an `annotation` key at any point.
+
     Also raises `RuntimeError` if `pipeline._expects_num_speakers` is True
-    (e.g. KMeansClustering or OracleClustering) -- this method briefly sets
-    `file["annotation"]` as scaffolding for `oracle_segmentation()` and
-    restores it afterwards, but if speaker-count-driven clustering is
-    enabled, `SpeakerDiarization.apply()` would read that same key for the
-    true speaker count before it's restored, silently contaminating the
-    oracle-segmentation condition with oracle speaker count too."""
+    (e.g. KMeansClustering or OracleClustering). This guard is a **refusal of
+    an unsupported combination, not leak prevention.** Speaker-count-driven
+    clustering needs a speaker count, and the harness supplies none:
+    `run_harness.py` builds `file` as `{"uri", "audio"}` and `Runner.run()`
+    calls the pipeline with no `num_speakers`, so
+    `SpeakerDiarization.apply()` would fall through to its own
+    `ValueError: num_speakers must be provided ...` raised from inside the
+    library (speaker_diarization.py:600-607). Failing here instead gives a
+    harness-level error that names the actual problem.
+
+    Where `k` should come from (oracle count, fixed, or estimated) is a design
+    decision with a different experiment behind each option, and is a
+    prerequisite for the clustering sweep rather than something this class
+    should decide implicitly.
+
+    Note on a claim this docstring previously made: it stated that
+    `apply()` would read `file["annotation"]` "before it's restored". That was
+    wrong -- `populate()` returns, restoring included, before `Runner.run()`
+    calls the pipeline at all, so no leak was ever possible by that route.
+    The description was taken at face value and cost a round of misdirected
+    planning; see Obsidian-Diarisation/Docs/Oracle Segmentation Provider.md."""
 
     id = "oracle-v2"
 
@@ -104,23 +122,27 @@ class OracleSegmentation(SegmentationSource):
         if getattr(pipeline, "_expects_num_speakers", False):
             raise RuntimeError(
                 "pipeline._expects_num_speakers is True (e.g. KMeansClustering "
-                "or OracleClustering) -- OracleSegmentation.populate() sets "
-                "file['annotation'] as scaffolding for oracle_segmentation(), "
-                "and that key would then leak true speaker count into the "
-                "pipeline's own clustering (speaker_diarization.py:600-602), "
-                "silently turning this into an oracle-segmentation-plus-"
-                "oracle-count condition. See Obsidian-Diarisation/Docs/"
-                "Oracle Segmentation Seam.md (Confound A) before proceeding."
+                "or OracleClustering), but the harness supplies no "
+                "num_speakers: run_harness.py builds file as {'uri', 'audio'} "
+                "and Runner.run() calls the pipeline without it, so "
+                "SpeakerDiarization.apply() would raise 'num_speakers must be "
+                "provided' from inside the library "
+                "(speaker_diarization.py:600-607). Deciding where k comes from "
+                "-- oracle count, fixed, or estimated -- is a prerequisite for "
+                "the clustering sweep; note that using the oracle count turns "
+                "this into an oracle-segmentation-plus-oracle-count condition "
+                "and must be recorded as such. See Obsidian-Diarisation/Docs/"
+                "Oracle Segmentation Seam.md (Confound A)."
             )
 
-        original_annotation = file.get("annotation")
-        file["annotation"] = reference
-        try:
-            file[pipeline.CACHED_SEGMENTATION] = oracle_segmentation(
-                file, window, frames
-            )
-        finally:
-            if original_annotation is None:
-                file.pop("annotation", None)
-            else:
-                file["annotation"] = original_annotation
+        # `oracle_segmentation()` reads only "duration" (falling back to
+        # decoding the audio) and "annotation", and never writes to the mapping
+        # it is given -- so a shallow copy carries everything it needs. Passing
+        # the copy keeps `annotation` off the caller's dict entirely, which is
+        # strictly safer than setting it and restoring it in a `finally`: there
+        # is no window in which the key exists, and no restore to depend on.
+        scaffold = dict(file)
+        scaffold["annotation"] = reference
+        file[pipeline.CACHED_SEGMENTATION] = oracle_segmentation(
+            scaffold, window, frames
+        )

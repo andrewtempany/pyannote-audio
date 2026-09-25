@@ -407,7 +407,7 @@ def _call(strategy, hard_clusters, segmentations):
     )
 
 
-def test_oracle_strategy_reports_four_exit_path_counts():
+def test_oracle_strategy_reports_five_exit_path_counts():
     # Two chunks, both fully active, reference speaker A then B, clusters
     # swapped -- both pairs are relabelled, nothing skipped.
     reference = Annotation()
@@ -418,9 +418,13 @@ def test_oracle_strategy_reports_four_exit_path_counts():
     strategy = make_oracle_strategy(reference, oracle_scope="all_pairs")
     _call(strategy, np.array([[1], [0]]), segmentations)
 
+    # `empty_support` is a fifth path, split out of `no_reference_overlap`
+    # (which used to absorb both no-active-frames and no-reference-speaker).
+    # Both pairs here are fully active, so it must read 0.
     assert strategy.counts == {
         "relabelled": 2,
         "out_of_scope": 0,
+        "empty_support": 0,
         "no_reference_overlap": 0,
         "unmapped_speaker": 0,
     }
