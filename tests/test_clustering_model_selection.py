@@ -174,7 +174,7 @@ def _patched_loaders():
 # `build_pipeline` refuses it (see its guard, and the finding recorded in the
 # ticket). Selection itself must still be proven correct, so these two lists
 # separate "can be selected" from "can be run".
-RUNNABLE_MODELS = ("pyannote-default", "agglomerative", "vbx")
+RUNNABLE_MODELS = ("pyannote-default", "agglomerative", "vbx", "hdbscan", "spectral")
 NUM_SPEAKERS_REQUIRED_MODELS = ("kmeans",)
 
 
@@ -220,6 +220,8 @@ def test_vocabulary_is_the_expected_closed_set():
         "agglomerative",
         "vbx",
         "kmeans",
+        "hdbscan",
+        "spectral",
     }
     assert "oracle" not in VALID_CLUSTERING_MODELS
     assert "OracleClustering" not in CLUSTERING_MODEL_CLASSES.values()

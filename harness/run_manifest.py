@@ -91,6 +91,9 @@ VALID_CLUSTERING_MODELS = (
     "agglomerative",
     "vbx",
     "kmeans",
+    # Added by the clustering-benchmark ticket. k-free, so runnable here.
+    "hdbscan",
+    "spectral",
 )
 
 # Vocabulary value -> `pyannote.audio.pipelines.clustering.Clustering` enum
@@ -107,6 +110,8 @@ CLUSTERING_MODEL_CLASSES = {
     "agglomerative": "AgglomerativeClustering",
     "vbx": "VBxClustering",
     "kmeans": "KMeansClustering",
+    "hdbscan": "HDBSCANClustering",
+    "spectral": "SpectralEigengapClustering",
 }
 
 

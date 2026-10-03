@@ -358,6 +358,25 @@ _(append while working: decisions, rejected options, gotchas, files touched)_
 - AGG-0-01 (centroid/12/0.70, "3.1-like setting (unverified)"): DER 17.94 (tune 17.98, report 17.89), MAE 0.50, 11/16. 16 full hits, 0 writes; manifest `AgglomerativeClustering(method='centroid', min_cluster_size=12, threshold=0.7)`. ~37 s per point.
 - AGG-0-02 (same, fresh RTTM cache): DER identical to 0.0, per-file CSV byte-identical. **A6 (agglomerative) and A8 verified.**
 
+### WS1 note: final-RTTM repeats (2026-10-03)
+- AGG-1a-06 (centroid/12/0.70) is the same configuration as AGG-0-01, so it was served whole from the final-RTTM cache: intermediate tally all zeros. The driver first flagged this as §7.2 hard-fail; it is not one (nothing recomputed). Driver now accepts an all-zero tally only when the final key matches an earlier recorded point, and notes the repeat. Two failed attempts left manifests in `runs/` (kept, never delete runs); ledger has the passing record only.
+- Gotcha: the §7.1 collision check compared params as strings (`0.7` vs `0.70`); now numeric.
+
+### WS2 / WS3 implementation (2026-10-03)
+- `HDBSCANClustering` and `SpectralEigengapClustering` added to `src/pyannote/audio/pipelines/clustering.py` + `Clustering` enum; `hdbscan`, `spectral` added to `VALID_CLUSTERING_MODELS` / `CLUSTERING_MODEL_CLASSES`. Existing classes untouched. `tests/test_clustering_model_selection.py`: closed-vocabulary test and `RUNNABLE_MODELS` updated for the two new names.
+- Tests in `tests/test_clustering_benchmark_methods.py`, shown failing (class missing) before implementation, then passing (108 across the related suites).
+- HDBSCAN: sklearn 1.9 `HDBSCAN(metric="euclidean", copy=True)` on unit-normalised embeddings; `min_samples=0` -> None. Noise (any negative label) folded into nearest non-noise centroid by cosine inside `cluster()`; all-noise -> all zeros; labels renumbered 0..K-1. Count bounds are not forced (pipeline only passes 1 and N).
+- HDBSCAN diagnostics without touching the base class: the subclass overrides `filter_embeddings`, calls the base one unchanged, and stashes chunk/speaker indices plus per-slot overlap fraction (share of that local speaker's active frames with >= 2 speakers active, from the binarised segmentation `__call__` already receives). `cluster()` turns that into `last_diagnostics` (num_train, num_outliers, num_dropped_by_filter, mean overlap of outliers / inliers / dropped, one row per training embedding). The harness writes the rows; the driver renames them to `outliers.csv`. "Dropped by filter" = active, valid embedding with < 20% solo frames (still assigned later by `assign_embeddings`, just never used to form clusters).
+- Fixture gotcha: HDBSCAN EOM absorbs a near-blob point into the blob unless it is very far off (cosine 0.9 from the blob); the fold test asserts the point really was noise first so it can't pass vacuously.
+- Spectral: affinity = cosine with negatives zeroed, top ceil(pruning*N) entries kept per row (self-similarity included, it is always a row max), symmetrised. Eigengap over the smallest `max_speakers + 1` eigenvalues of the normalised Laplacian (`scipy.linalg.eigh` subset), k = 1 + argmax(diff) so k in [1, max_speakers] (reading of §5 WS3.5: "first max_speakers eigenvalues" gives only max_speakers-1 gaps, which would make max_speakers unreachable). Partition with sklearn `SpectralClustering(affinity="precomputed", random_state=42)`. Synthetic timing: N=3000 3.1 s, N=6000 12.4 s, so dense eigh is fine (no eigsh switch needed unless the real first point says otherwise).
+- A2 verified for both new classes (final keys differ by a hyperparameter, unit tests).
+
+### Finding: clustering can only move Confusion here (2026-10-03)
+- Across every WS1 point so far, MD (2925.0 s), FA (1099.1 s) and all three overlap regions are identical to VBx to the second. Only Confusion and speaker count move.
+- Mechanism, from source: the frame-level number of active speakers comes from the segmentation alone (`speaker_count(binarized_segmentations)`, speaker_diarization.py:625), and `reconstruct` / `to_diarization` picks the top-`count` clusters per frame. When there are fewer clusters than `count`, extra labels are created (comment at :784). So a method that merges two overlapping speakers cannot erase the overlap: the second slot is still filled, by another cluster or a padded label.
+- Consequence: the ticket's §1 expectation ("merging overlapping speakers shrinks region_d_minus_t / region_t_and_d and raises MD") does not apply to this pipeline. All between-method DER differences are Confusion differences. Also explains AGG-1a-11/12: at threshold >= 1.10 every meeting collapses to one cluster but outputs exactly 2 speakers (the padded overlap label), giving byte-identical results that are real saturation, not a stuck setting.
+- Tie note: AGG-1a-07 (0.75) and AGG-1a-08 (0.80) tie on tune DER (16.10) but differ by 2 points on report (17.54 vs 19.58): the split is doing its job.
+
 ## Results
 
 _(filled in WS4)_

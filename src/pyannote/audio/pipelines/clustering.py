@@ -756,8 +756,304 @@ class OracleClustering(BaseClustering):
         return hard_clusters, soft_clusters, centroids
 
 
+class HDBSCANClustering(BaseClustering):
+    """HDBSCAN clustering (clustering-benchmark ticket)
+
+    Density-based and k-free. Embeddings are unit-normalized and clustered
+    with euclidean HDBSCAN (monotonic in cosine distance on the unit sphere).
+    Points HDBSCAN labels as noise are folded into the nearest non-noise
+    cluster centroid (cosine) before returning, so `cluster()` never returns
+    a negative label; `assign_embeddings` then assigns every embedding to its
+    nearest centroid as for the other classes.
+
+    The number of clusters cannot be forced: `num_clusters`, `min_clusters`
+    and `max_clusters` are ignored (the pipeline only ever passes the trivial
+    bounds 1 and num_embeddings here).
+
+    After each call, `last_diagnostics` holds per-file counts (outliers,
+    embeddings dropped by `filter_embeddings`) and one row per training
+    embedding with its overlap fraction: the share of that local speaker's
+    active frames in the chunk where 2 or more speakers are active.
+
+    Hyper-parameters
+    ----------------
+    min_cluster_size : int
+        Smallest group HDBSCAN counts as a cluster.
+    min_samples : int
+        Neighbourhood size for core distances; 0 means "same as
+        min_cluster_size" (sklearn's None).
+    cluster_selection_method : {"eom", "leaf"}
+        How flat clusters are read off the hierarchy.
+    """
+
+    expects_num_clusters: bool = False
+
+    def __init__(
+        self,
+        metric: str = "cosine",
+        constrained_assignment: bool = False,
+    ):
+        super().__init__(
+            metric=metric,
+            constrained_assignment=constrained_assignment,
+        )
+        self.min_cluster_size = Integer(2, 200)
+        self.min_samples = Integer(0, 200)
+        self.cluster_selection_method = Categorical(["eom", "leaf"])
+        self.last_diagnostics = None
+        self._filter_context = None
+
+    def filter_embeddings(
+        self,
+        embeddings: np.ndarray,
+        segmentations: SlidingWindowFeature | None = None,
+        min_active_ratio: float = 0.2,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        filtered, chunk_idx, speaker_idx = super().filter_embeddings(
+            embeddings, segmentations=segmentations, min_active_ratio=min_active_ratio
+        )
+
+        # diagnostics only: the filtering itself is the base class's, unchanged
+        data = segmentations.data
+        active_frames = np.sum(data, axis=1)
+        overlap_mask = np.sum(data, axis=2, keepdims=True) >= 2
+        overlap_frames = np.sum(data * overlap_mask, axis=1)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            overlap_fraction = overlap_frames / active_frames
+        # num_chunks, num_speakers
+
+        kept = np.zeros(active_frames.shape, dtype=bool)
+        kept[chunk_idx, speaker_idx] = True
+        valid = ~np.any(np.isnan(embeddings), axis=2)
+        dropped = (active_frames > 0) & valid & ~kept
+
+        self._filter_context = {
+            "chunk_idx": chunk_idx,
+            "speaker_idx": speaker_idx,
+            "overlap_fraction": overlap_fraction[chunk_idx, speaker_idx],
+            "num_active": int(np.sum((active_frames > 0) & valid)),
+            "num_dropped_by_filter": int(np.sum(dropped)),
+            "mean_overlap_fraction_dropped": (
+                float(np.mean(overlap_fraction[dropped])) if np.any(dropped) else None
+            ),
+        }
+        return filtered, chunk_idx, speaker_idx
+
+    def cluster(
+        self,
+        embeddings: np.ndarray,
+        min_clusters: int | None = None,
+        max_clusters: int | None = None,
+        num_clusters: int | None = None,
+    ):
+        from sklearn.cluster import HDBSCAN
+
+        num_embeddings, _ = embeddings.shape
+        with np.errstate(divide="ignore", invalid="ignore"):
+            normalized = embeddings / np.linalg.norm(embeddings, axis=-1, keepdims=True)
+
+        if num_embeddings < 2:
+            labels = -np.ones((num_embeddings,), dtype=int)
+        else:
+            labels = HDBSCAN(
+                min_cluster_size=max(2, min(self.min_cluster_size, num_embeddings)),
+                min_samples=(self.min_samples or None),
+                cluster_selection_method=self.cluster_selection_method,
+                metric="euclidean",
+                copy=True,
+            ).fit_predict(normalized)
+
+        # sklearn uses -1 for noise (and -2/-3 for infinite/missing values)
+        is_outlier = labels < 0
+        clusters = labels.copy()
+
+        if np.all(is_outlier):
+            clusters = np.zeros((num_embeddings,), dtype=int)
+        elif np.any(is_outlier):
+            found = np.unique(labels[~is_outlier])
+            centroids = np.vstack(
+                [np.mean(normalized[labels == k], axis=0) for k in found]
+            )
+            nearest = np.argmin(
+                cdist(normalized[is_outlier], centroids, metric="cosine"), axis=1
+            )
+            clusters[is_outlier] = found[nearest]
+
+        # re-number clusters from 0 to num_clusters - 1
+        _, clusters = np.unique(clusters, return_inverse=True)
+
+        self._record_diagnostics(labels, is_outlier, clusters)
+        return clusters
+
+    def _record_diagnostics(self, labels, is_outlier, clusters):
+        context = self._filter_context or {}
+        self._filter_context = None
+        diagnostics = {
+            "num_train": int(len(labels)),
+            "num_outliers": int(np.sum(is_outlier)),
+            "num_clusters_found": int(len(np.unique(labels[~is_outlier]))),
+            "num_clusters": int(len(np.unique(clusters))),
+        }
+        if context:
+            fraction = context["overlap_fraction"]
+            diagnostics.update(
+                num_active=context["num_active"],
+                num_dropped_by_filter=context["num_dropped_by_filter"],
+                mean_overlap_fraction_dropped=context["mean_overlap_fraction_dropped"],
+                mean_overlap_fraction_outliers=(
+                    float(np.mean(fraction[is_outlier])) if np.any(is_outlier) else None
+                ),
+                mean_overlap_fraction_inliers=(
+                    float(np.mean(fraction[~is_outlier])) if np.any(~is_outlier) else None
+                ),
+                rows=[
+                    {
+                        "chunk_idx": int(c),
+                        "speaker_idx": int(s),
+                        "is_outlier": bool(o),
+                        "assigned_cluster": int(k),
+                        "overlap_fraction": float(f),
+                    }
+                    for c, s, o, k, f in zip(
+                        context["chunk_idx"], context["speaker_idx"],
+                        is_outlier, clusters, fraction,
+                    )
+                ],
+            )
+        self.last_diagnostics = diagnostics
+
+
+class SpectralEigengapClustering(BaseClustering):
+    """Spectral clustering with an eigengap speaker-count estimate
+    (clustering-benchmark ticket)
+
+    1. unit-normalize embeddings, cosine similarity matrix
+    2. zero negative similarities, keep the top `pruning` fraction of entries
+       per row (at least one), zero the rest
+    3. symmetrize: (A + A.T) / 2
+    4. smallest `max_speakers + 1` eigenvalues of the normalized Laplacian
+    5. k = 1 + argmax of their consecutive gaps, so 1 <= k <= max_speakers,
+       then clamped to [min_clusters, max_clusters] (or k = num_clusters
+       when given)
+    6. partition the pruned affinity with sklearn's spectral clustering
+
+    Every embedding gets a label, so there are no outliers to fold. After
+    each call, `last_diagnostics` holds the estimated k, the eigenvalues and
+    the wall time of `cluster()`.
+
+    Hyper-parameters
+    ----------------
+    pruning : float
+        Fraction of strongest similarities kept per row; 1.0 means none pruned.
+    max_speakers : int
+        Upper limit for the eigengap search.
+    """
+
+    expects_num_clusters: bool = False
+
+    def __init__(
+        self,
+        metric: str = "cosine",
+        constrained_assignment: bool = False,
+    ):
+        super().__init__(
+            metric=metric,
+            constrained_assignment=constrained_assignment,
+        )
+        self.pruning = Uniform(0.01, 1.0)
+        self.max_speakers = Integer(2, 20)
+        self.last_diagnostics = None
+
+    def affinity(self, embeddings: np.ndarray) -> np.ndarray:
+        num_embeddings, _ = embeddings.shape
+        with np.errstate(divide="ignore", invalid="ignore"):
+            normalized = embeddings / np.linalg.norm(embeddings, axis=-1, keepdims=True)
+        affinity = normalized @ normalized.T
+        affinity[affinity < 0] = 0.0
+
+        keep = max(1, int(np.ceil(self.pruning * num_embeddings)))
+        if keep < num_embeddings:
+            # zero everything below each row's keep-th largest similarity
+            weakest = np.argpartition(affinity, num_embeddings - keep, axis=1)[
+                :, : num_embeddings - keep
+            ]
+            np.put_along_axis(affinity, weakest, 0.0, axis=1)
+
+        return (affinity + affinity.T) / 2
+
+    def estimate_num_clusters(self, affinity: np.ndarray) -> tuple[int, np.ndarray]:
+        from scipy.linalg import eigh
+
+        num_embeddings = affinity.shape[0]
+        degree = affinity.sum(axis=1)
+        with np.errstate(divide="ignore"):
+            inv_sqrt_degree = np.where(degree > 0, 1.0 / np.sqrt(degree), 0.0)
+        laplacian = np.eye(num_embeddings) - (
+            inv_sqrt_degree[:, None] * affinity * inv_sqrt_degree[None, :]
+        )
+        num_eigenvalues = min(self.max_speakers + 1, num_embeddings)
+        eigenvalues = eigh(
+            laplacian,
+            eigvals_only=True,
+            subset_by_index=[0, num_eigenvalues - 1],
+        )
+        k = 1 + int(np.argmax(np.diff(eigenvalues)))
+        return k, eigenvalues
+
+    def cluster(
+        self,
+        embeddings: np.ndarray,
+        min_clusters: int | None = None,
+        max_clusters: int | None = None,
+        num_clusters: int | None = None,
+    ):
+        import time
+
+        from sklearn.cluster import SpectralClustering as SklearnSpectralClustering
+
+        started = time.perf_counter()
+        num_embeddings, _ = embeddings.shape
+
+        if num_embeddings < 3:
+            self.last_diagnostics = {
+                "num_train": int(num_embeddings), "k": 1, "k_estimated": 1,
+                "eigenvalues": [], "cluster_seconds": time.perf_counter() - started,
+            }
+            return np.zeros((num_embeddings,), dtype=int)
+
+        affinity = self.affinity(embeddings)
+        k_estimated, eigenvalues = self.estimate_num_clusters(affinity)
+
+        k = num_clusters or k_estimated
+        if min_clusters is not None:
+            k = max(k, min_clusters)
+        if max_clusters is not None:
+            k = min(k, max_clusters)
+
+        if k == 1:
+            clusters = np.zeros((num_embeddings,), dtype=int)
+        else:
+            clusters = SklearnSpectralClustering(
+                n_clusters=k, affinity="precomputed", random_state=42
+            ).fit_predict(affinity)
+
+        # re-number clusters from 0 to num_clusters - 1
+        _, clusters = np.unique(clusters, return_inverse=True)
+
+        self.last_diagnostics = {
+            "num_train": int(num_embeddings),
+            "k_estimated": int(k_estimated),
+            "k": int(len(np.unique(clusters))),
+            "eigenvalues": [float(v) for v in eigenvalues],
+            "cluster_seconds": time.perf_counter() - started,
+        }
+        return clusters
+
+
 class Clustering(Enum):
     AgglomerativeClustering = AgglomerativeClustering
     KMeansClustering = KMeansClustering
     VBxClustering = VBxClustering
     OracleClustering = OracleClustering
+    HDBSCANClustering = HDBSCANClustering
+    SpectralEigengapClustering = SpectralEigengapClustering

@@ -247,6 +247,10 @@ def _same_value(requested: str, recorded: str) -> bool:
         return requested == recorded
 
 
+def _same_params(a: dict, b: dict) -> bool:
+    return set(a) == set(b) and all(_same_value(a[k], b[k]) for k in a)
+
+
 def _diagnostic_summary(method: str, diag_dir: Path) -> dict:
     path = diag_dir / "diagnostics.json"
     if not path.exists():
@@ -259,6 +263,10 @@ def _diagnostic_summary(method: str, diag_dir: Path) -> dict:
         outliers = sum(d["num_outliers"] for d in diagnostics.values())
         train = sum(d["num_train"] for d in diagnostics.values())
         out["outlier_rate"] = outliers / train
+        out["num_outliers"] = outliers
+        out["num_train"] = train
+        out["num_dropped_by_filter"] = sum(d["num_dropped_by_filter"] for d in diagnostics.values())
+        out["num_active"] = sum(d["num_active"] for d in diagnostics.values())
     if method == "spectral":
         ks = [d["k"] for d in diagnostics.values()]
         out["k_range"] = f"{min(ks)}-{max(ks)}"
@@ -315,7 +323,21 @@ def run_point(point_id: str, ws: str, method: str, params: dict[str, str],
         # intermediate tier. A miss or write means the GPU recomputed.
         tally = next((l for l in result.stdout.splitlines() if l.startswith("intermediate cache:")), "")
         record["cache_tally"] = tally
-        if not tally.startswith(EXPECTED_TALLY):
+        # Exception: a configuration identical to an earlier point is served
+        # whole from the final-RTTM cache, so the intermediate tier is never
+        # consulted and the tally is all zeros. Nothing was recomputed, which
+        # is what the rule protects; the repeat is recorded in the notes.
+        repeat_of = [p["point_id"] for p in load_points()
+                     if p.get("final_key") == record["final_key"] and "metrics" in p
+                     and p["point_id"] != point_id]
+        served_from_rttm = tally.startswith(
+            "intermediate cache: 0 full hit(s), 0 partial, 0 miss(es), 0 write(s)"
+        ) and repeat_of
+        if served_from_rttm:
+            record["notes"] = (record["notes"] + "; " if record["notes"] else "") + (
+                f"repeat of {repeat_of[0]}: served from final-RTTM cache (ms-quantised, ~1e-5 DER)"
+            )
+        elif not tally.startswith(EXPECTED_TALLY):
             raise HardFail(f"intermediate cache tally was {tally!r}")
 
         # §7.3: the manifest must name the requested class and values.
@@ -330,9 +352,14 @@ def run_point(point_id: str, ws: str, method: str, params: dict[str, str],
 
         # §7.1: a different configuration must never share a final key.
         for other in load_points():
-            if other.get("final_key") == record["final_key"] and other["params"] != params \
+            if other.get("final_key") == record["final_key"] \
+                    and not _same_params(other["params"], params) \
                     and other["point_id"] != point_id:
                 raise HardFail(f"final cache key collides with {other['point_id']}")
+
+        rows_csv = out_dir / "diagnostics_rows.csv"
+        if method == "hdbscan" and rows_csv.exists():
+            rows_csv.replace(out_dir / "outliers.csv")  # the ticket's name for it
 
         summary = json.loads((out_dir / "summary.json").read_text())
         record["metrics"] = point_metrics(out_dir / "per_file.csv", summary)
