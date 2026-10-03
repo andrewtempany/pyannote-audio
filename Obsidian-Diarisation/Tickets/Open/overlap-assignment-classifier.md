@@ -420,3 +420,10 @@ _(filled in WS6)_
 - Tests: hook path == offline path for three strategies; HDBSCAN `nc_target` == identity exactly; existing harness tests (128) pass.
 - `harness/assignment_runs.py` runs one test point through `run_harness.py`. It enforces hard-fails 1, 3 and 7, writes `test_runs/<point>/`, appends `runs.jsonl` and rebuilds `RUN_INDEX.md` with bootstrap intervals (90%, 2000 draws, seed 0, paired over meetings).
 - Gotcha: the Windows console is cp1252. Set `PYTHONIOENCODING=utf-8` when printing ≤/Δ.
+
+**WS1, 2026-10-03/04**
+- Cold VBx identity runs (GPU, batch 32). Dev: 18 misses / 18 writes, DER **16.90%** (`20261003T055158Z-c9fcfc74`). Train: 136 misses / 136 writes, DER **15.65%**, finished 2026-10-04 07:22 NZDT. Train ran about 5 h on its own; dev took about 37 min while CPU jobs shared the machine.
+- HDBSCAN leaf/40 dev from cache: 18/18 full hits, DER **17.19%**. A6 is confirmed for dev: the VBx run's intermediates serve HDBSCAN unchanged. The train check is running.
+- Baseline DER by split (VBx / HDBSCAN): train 15.65 / pending · dev 16.90 / 17.19 · test 17.05 / 16.86. Train being lowest fits the A7 caveat (community-1 likely trained on AMI train). HDBSCAN beats VBx on test but not on dev.
+- Intermediate cache: 186 entries, 682 MB, including 16 orphaned pre-batch-size entries. A9 holds: well under 1 GB.
+- Train downloads repaired 21 files. Upstream's hard-coded list misses some of these, e.g. IS1000a/b/d, IS1002b, IS1003b/d, IS1005c, IS1006a/d, IS1007b. This supports checking every file instead of relying on a list.
