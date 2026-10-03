@@ -113,9 +113,9 @@ Everything below is instructions for the executor. The plain-language section ab
 | # | Claim | Source | Status | How to verify |
 |---|---|---|---|---|
 | A1 | `AMI-diarization-setup` ships `train` and `dev` meeting lists and only_words RTTM/UEM for both, and the train list has 136 meetings | planner memory | **verified** 2026-10-03: train 136, dev 18, test 16 (`lists/*.meetings.txt`, CRLF-stripped); only_words RTTM and UEM present for all (136/18/16) | count lines in the lists; record the real numbers |
-| A2 | Some train/dev WAVs have malformed headers like IS1009 | AMI Corpus Setup gotchas | unverified | for every WAV, compare the header-declared length to the file size and load it with torchaudio; repair with the same method as IS1009 |
+| A2 | Some train/dev WAVs have malformed headers like IS1009 | AMI Corpus Setup gotchas | **verified (dev)**: IS1008a–d had data chunks 1,383 bytes short of file end; repaired. Train: see WS1 notes | for every WAV, compare the header-declared length to the file size and load it with torchaudio; repair with the same method as IS1009 |
 | A3 | Under VBx, `filter_embeddings` decides the clustering training set the same way as for the `cluster()` classes (VBx overrides `__call__`) | planner reading | **verified with a catch**: same `filter_embeddings` rule (clustering.py:584), but centroids are VBx-responsibility-weighted (:619-620), not plain means, and assignment is a per-chunk Hungarian over all pairs (`constrained_assignment=True`, :559, :658-663). See Implementation Notes C1 | read `VBxClustering.__call__`; record exactly how it picks the training set and builds centroids |
-| A4 | `centroids` and `soft_clusters` passed to refinement are non-None and aligned with `hard_clusters` labels for VBx and HDBSCAN | refinement doc | unverified | assert in a test on one cached meeting per method |
+| A4 | `centroids` and `soft_clusters` passed to refinement are non-None and aligned with `hard_clusters` labels for VBx and HDBSCAN | refinement doc | **verified** on IS1009a for both methods (`tests/test_assignment_common.py`, 10 passed): soft shape (c, s, K) with K = centroids rows, every active label in [0, K) and every centroid used; HDBSCAN hard = argmax(soft) exactly; VBx active pairs in a chunk never share a cluster | assert in a test on one cached meeting per method |
 | A5 | The refinement hook receives every pair's embedding, including held-back ones (NaN only where extraction failed) | refinement doc | **verified** on one cached test meeting: 1,123 held-back of 3,276 active, 0 NaN. Inactive slots also have non-NaN embeddings, so targets must be filtered by activity | count non-NaN held-back embeddings on one meeting |
 | A6 | Intermediates for train/dev are keyed the same way as test, so one cold run per split caches them for both VBx and HDBSCAN | Pre-Clustering Cache | reported | the cache tally on the second clustering method's run over train: all full hits |
 | A7 | community-1's segmentation/embedding models were trained on data including AMI train | planner belief | unverified | check the model cards / pyannote papers if reachable; otherwise state it as "likely" in the write-up |
@@ -349,3 +349,16 @@ _(append while working: decisions, rejected options, gotchas, files touched)_
 ## Results
 
 _(filled in WS6)_
+
+**WS0, 2026-10-03**
+- Identity reproduction on test, with final RTTMs recomputed from a scratch `--cache-dir` holding a copy of `intermediates/` (16/16 full hits in both):
+  - VBx `20261003T044356Z-0fa3b41d`: DER **0.17048543579940637**, bit-identical to the cold baseline `db977741`.
+  - HDBSCAN leaf/40 `20261003T044452Z-b96eddd3`: DER **0.16855098234923788**, bit-identical to HDB-2b-04 `b15caf86`.
+  - MD 2925.05 / FA 1099.07 / region census are identical across the two. Confusion is 1212.15 (VBx) vs 1152.74 (HDBSCAN).
+- `harness/assignment_common.py` rebuilds a meeting's clustering on CPU from the cache, with the same arguments `apply()` passes (num_clusters None, min 1, max inf; `set_num_speakers` defaults). It returns hard/soft/centroids plus the active, held-back and outlier masks. Outliers are read from HDBSCAN `last_diagnostics.rows`. Held-back is recomputed with `filter_embeddings`' rule and asserted equal to it in a test.
+- `tests/test_assignment_common.py` covers A3/A4/A5 on IS1009a for both methods. Loading the pipeline on CPU is fast (about 2 s), so the tests are cheap.
+
+**WS1 (in progress)**
+- `~/Code/AMI-diarization-setup/pyannote/download_ami_split.sh <split> <dest>` reads `lists/<split>.meetings.txt` (CRLF stripped). It downloads with `curl --fail --location` over https and writes a `.done` marker per file so re-runs resume. It then checks every WAV's RIFF size and data-chunk end against the real file size, and rewrites any mismatching file through `wave` (the IS1009 repair).
+  - Before use, it was checked against the 16 test files (0 flagged) and against a deliberately truncated scratch file (flagged, then repaired).
+- Dev: 18 meetings downloaded, 4 repaired (IS1008a–d), which matches upstream `download_ami.sh`'s hard-coded list. `convert_for_harness.sh` already took a split argument, so no change was needed. dev.rttm/uem cover 18 URIs each.
