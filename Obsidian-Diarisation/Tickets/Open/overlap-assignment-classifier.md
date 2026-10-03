@@ -313,6 +313,18 @@ Follow the vault workflow in `CLAUDE.md`. Convert this ticket into `Docs/Assignm
 
 _(newest first)_
 
+### 2026-10-03 — the "one speaker per chunk" rule mostly contradicts the correct labels (non-blocking; continuing)
+
+Early look at two test meetings (IS1009a, EN2002c), done through the pair-evaluator path:
+- **About 60% of labelled target voices have a "correct" speaker that is the same as another active voice in the same chunk.** In the most overlapped bin (>50% overlap) it's about 70%. The label is the oracle's: the reference speaker who talks most during that voice's frames. For a voice that's mostly overlap, that is often the *other* person talking.
+- VBx enforces "no two voices in a chunk share a speaker". So its own answer is right for only **28–33%** of high-overlap target voices, against **57–68%** for plain nearest centroid. Overall it's 39–43% vs 63–71%. Clean voices are 94–97% either way.
+- HDBSCAN doesn't enforce the rule: 68–76% on target voices.
+
+What this means for the plan:
+- `constrained_target` and the Hungarian step in WS4 will probably *lower* accuracy against these labels. I'll still run them as the ticket asks, always next to the unconstrained version.
+- The §6 prediction "constrained gives a small gain" will likely fail. It stays recorded as written.
+- *Suggested:* keep the oracle's label definition, because the 0.97 / 0.47 ceilings were measured with it. A "collision-free" label (dominant speaker after excluding co-speakers) would be a second labeller and a different ceiling, so I haven't built one. Tell me if you want that as an extra analysis.
+
 ### 2026-10-03 — kickoff questions (defaults in force until you answer)
 
 **Blocking now:** none. `.claude/settings.json` now allows `run_harness.py`, `git add` and `git commit`, so the run can go unattended.

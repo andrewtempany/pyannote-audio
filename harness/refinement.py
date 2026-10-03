@@ -235,6 +235,12 @@ def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs")
         result = hard_clusters.copy()
         counts = _new_counts()
         strategy.counts = counts
+        # Per-pair answer key: the mapped cluster for every `relabelled` pair,
+        # -1 for every other path. Read by harness/assignment_labels.py so the
+        # assignment-classifier ticket reuses this labeller instead of
+        # writing a second one. Additive; `result` is unaffected.
+        labels = np.full(hard_clusters.shape, -1, dtype=int)
+        strategy.labels = labels
 
         hypothesis = _reconstruct_hypothesis(hard_clusters, segmentations)
         if len(hypothesis) == 0:
@@ -287,11 +293,13 @@ def make_oracle_strategy(reference: Annotation, oracle_scope: str = "all_pairs")
                 # cluster labels in `hypothesis` are strings (str(cluster));
                 # convert back to the original numpy dtype for assignment.
                 result[chunk_index, local_speaker] = int(str(mapped_cluster))
+                labels[chunk_index, local_speaker] = int(str(mapped_cluster))
                 counts["relabelled"] += 1
 
         return result
 
     strategy.counts = _new_counts()
+    strategy.labels = None
     return strategy
 
 
