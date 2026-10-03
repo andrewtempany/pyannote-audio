@@ -1,0 +1,200 @@
+{
+ "ES2011a": {
+  "num_train": 1112,
+  "num_outliers": 354,
+  "num_clusters_found": 3,
+  "num_clusters": 3,
+  "num_active": 1742,
+  "num_dropped_by_filter": 630,
+  "mean_overlap_fraction_dropped": 0.6207593083381653,
+  "mean_overlap_fraction_outliers": 0.1508190631866455,
+  "mean_overlap_fraction_inliers": 0.129695326089859
+ },
+ "ES2011b": {
+  "num_train": 1650,
+  "num_outliers": 300,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 2467,
+  "num_dropped_by_filter": 817,
+  "mean_overlap_fraction_dropped": 0.6665042042732239,
+  "mean_overlap_fraction_outliers": 0.2772098183631897,
+  "mean_overlap_fraction_inliers": 0.12588073313236237
+ },
+ "ES2011c": {
+  "num_train": 1807,
+  "num_outliers": 376,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 2634,
+  "num_dropped_by_filter": 827,
+  "mean_overlap_fraction_dropped": 0.6593268513679504,
+  "mean_overlap_fraction_outliers": 0.2018936276435852,
+  "mean_overlap_fraction_inliers": 0.12025169283151627
+ },
+ "ES2011d": {
+  "num_train": 2136,
+  "num_outliers": 936,
+  "num_clusters_found": 5,
+  "num_clusters": 5,
+  "num_active": 3261,
+  "num_dropped_by_filter": 1125,
+  "mean_overlap_fraction_dropped": 0.545773446559906,
+  "mean_overlap_fraction_outliers": 0.154954731464386,
+  "mean_overlap_fraction_inliers": 0.1018775925040245
+ },
+ "IB4001": {
+  "num_train": 1979,
+  "num_outliers": 409,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 3524,
+  "num_dropped_by_filter": 1545,
+  "mean_overlap_fraction_dropped": 0.6568770408630371,
+  "mean_overlap_fraction_outliers": 0.26289770007133484,
+  "mean_overlap_fraction_inliers": 0.1485453099012375
+ },
+ "IB4002": {
+  "num_train": 2062,
+  "num_outliers": 1541,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 4070,
+  "num_dropped_by_filter": 2008,
+  "mean_overlap_fraction_dropped": 0.5419847965240479,
+  "mean_overlap_fraction_outliers": 0.21451467275619507,
+  "mean_overlap_fraction_inliers": 0.1272752583026886
+ },
+ "IB4003": {
+  "num_train": 2424,
+  "num_outliers": 333,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 3838,
+  "num_dropped_by_filter": 1414,
+  "mean_overlap_fraction_dropped": 0.7121327519416809,
+  "mean_overlap_fraction_outliers": 0.2468772679567337,
+  "mean_overlap_fraction_inliers": 0.09907855838537216
+ },
+ "IB4004": {
+  "num_train": 3091,
+  "num_outliers": 454,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 5024,
+  "num_dropped_by_filter": 1933,
+  "mean_overlap_fraction_dropped": 0.6686788201332092,
+  "mean_overlap_fraction_outliers": 0.28746646642684937,
+  "mean_overlap_fraction_inliers": 0.14543499052524567
+ },
+ "IB4010": {
+  "num_train": 3492,
+  "num_outliers": 870,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 6182,
+  "num_dropped_by_filter": 2690,
+  "mean_overlap_fraction_dropped": 0.6953556537628174,
+  "mean_overlap_fraction_outliers": 0.2824956178665161,
+  "mean_overlap_fraction_inliers": 0.1513994038105011
+ },
+ "IB4011": {
+  "num_train": 2873,
+  "num_outliers": 542,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 4810,
+  "num_dropped_by_filter": 1937,
+  "mean_overlap_fraction_dropped": 0.6704791188240051,
+  "mean_overlap_fraction_outliers": 0.2725069522857666,
+  "mean_overlap_fraction_inliers": 0.13651873171329498
+ },
+ "IS1008a": {
+  "num_train": 1035,
+  "num_outliers": 17,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 1467,
+  "num_dropped_by_filter": 432,
+  "mean_overlap_fraction_dropped": 0.49614217877388,
+  "mean_overlap_fraction_outliers": 0.01179426908493042,
+  "mean_overlap_fraction_inliers": 0.05465424433350563
+ },
+ "IS1008b": {
+  "num_train": 1748,
+  "num_outliers": 98,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 2481,
+  "num_dropped_by_filter": 733,
+  "mean_overlap_fraction_dropped": 0.5233453512191772,
+  "mean_overlap_fraction_outliers": 0.10560677200555801,
+  "mean_overlap_fraction_inliers": 0.035650111734867096
+ },
+ "IS1008c": {
+  "num_train": 1641,
+  "num_outliers": 98,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 2391,
+  "num_dropped_by_filter": 750,
+  "mean_overlap_fraction_dropped": 0.5609616637229919,
+  "mean_overlap_fraction_outliers": 0.18493075668811798,
+  "mean_overlap_fraction_inliers": 0.06944756954908371
+ },
+ "IS1008d": {
+  "num_train": 1625,
+  "num_outliers": 122,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 2604,
+  "num_dropped_by_filter": 979,
+  "mean_overlap_fraction_dropped": 0.565920352935791,
+  "mean_overlap_fraction_outliers": 0.24646218121051788,
+  "mean_overlap_fraction_inliers": 0.09389592707157135
+ },
+ "TS3004a": {
+  "num_train": 1346,
+  "num_outliers": 361,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 2555,
+  "num_dropped_by_filter": 1209,
+  "mean_overlap_fraction_dropped": 0.4984854757785797,
+  "mean_overlap_fraction_outliers": 0.15168017148971558,
+  "mean_overlap_fraction_inliers": 0.12087788432836533
+ },
+ "TS3004b": {
+  "num_train": 2767,
+  "num_outliers": 1029,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 4314,
+  "num_dropped_by_filter": 1547,
+  "mean_overlap_fraction_dropped": 0.6076839566230774,
+  "mean_overlap_fraction_outliers": 0.21532855927944183,
+  "mean_overlap_fraction_inliers": 0.10411886870861053
+ },
+ "TS3004c": {
+  "num_train": 2989,
+  "num_outliers": 1119,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 5176,
+  "num_dropped_by_filter": 2187,
+  "mean_overlap_fraction_dropped": 0.5638321042060852,
+  "mean_overlap_fraction_outliers": 0.21459993720054626,
+  "mean_overlap_fraction_inliers": 0.13859081268310547
+ },
+ "TS3004d": {
+  "num_train": 2969,
+  "num_outliers": 1746,
+  "num_clusters_found": 4,
+  "num_clusters": 4,
+  "num_active": 5329,
+  "num_dropped_by_filter": 2360,
+  "mean_overlap_fraction_dropped": 0.4895743727684021,
+  "mean_overlap_fraction_outliers": 0.16814881563186646,
+  "mean_overlap_fraction_inliers": 0.15734727680683136
+ }
+}

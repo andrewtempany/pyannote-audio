@@ -1,0 +1,6 @@
+dev vbx knn k=5: pair acc 70.26% (n=24722)
+dev vbx knn k=10: pair acc 70.71% (n=24722)
+dev vbx knn k=25: pair acc 70.94% (n=24722)
+dev hdbscan knn k=5: pair acc 75.51% (n=35274)
+dev hdbscan knn k=10: pair acc 75.55% (n=35274)
+dev hdbscan knn k=25: pair acc 75.62% (n=35274)

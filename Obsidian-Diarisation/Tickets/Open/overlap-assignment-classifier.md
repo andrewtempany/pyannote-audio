@@ -313,6 +313,35 @@ Follow the vault workflow in `CLAUDE.md`. Convert this ticket into `Docs/Assignm
 
 _(newest first)_
 
+### 2026-10-03 — WS3 check-in (informational; continuing unless you object)
+
+**How often the clustering already picks the right speaker for hard-to-place voices (the floor):**
+
+| | dev | test |
+|---|---|---|
+| VBx as-is | 51.4% | 44.2% |
+| VBx with plain nearest centroid | 70.5% | 67.2% |
+| HDBSCAN as-is (= nearest centroid) | 75.6% | 72.7% |
+
+Most target voices (62–65%) are more than half overlap. That's where accuracy is lowest: 31–38% for VBx as-is, about 60% for nearest centroid.
+
+**Non-learned options on the 16 test meetings** (ΔDER vs the clustering's own output, 90% interval):
+
+| | pair acc | DER | ΔDER |
+|---|---|---|---|
+| VBx + nearest centroid | 67.2% | 16.89 | −0.16 [−0.26, −0.06] |
+| VBx + "one speaker per chunk" | 44.2% | 17.05 | 0 (identical to VBx by construction) |
+| VBx + nearest neighbours (k=25) | 68.6% | **16.85** | **−0.20 [−0.35, −0.06]** |
+| HDBSCAN + "one speaker per chunk" | 53.5% | 16.94 | +0.08 [−0.01, +0.19] |
+| HDBSCAN + nearest neighbours (k=25) | 72.9% | 16.93 | +0.07 [0.00, +0.16] |
+
+In plain terms:
+- On VBx, simply letting hard voices go to their nearest speaker, without the "one speaker per chunk" rule, already gives a small real gain. Nearest neighbours is a touch better.
+- On HDBSCAN nothing beats the default yet.
+- All DER changes are under the 0.3-point "clear difference" bar. A 23-point jump in pair accuracy buys only 0.16–0.20 DER, because these voices carry little speaking time.
+
+Dev baselines (for the shift check): VBx 16.90%, HDBSCAN 17.19%. On dev, HDBSCAN is *worse* than VBx, the reverse of test.
+
 ### 2026-10-03 — the "one speaker per chunk" rule mostly contradicts the correct labels (non-blocking; continuing)
 
 Early look at two test meetings (IS1009a, EN2002c), done through the pair-evaluator path:
