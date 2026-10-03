@@ -64,7 +64,14 @@ ORACLE_SEGMENTATION_CONDITIONS = (
 # used. "oracle" is accepted here even though T4 (a separate ticket) hasn't
 # implemented that strategy yet, so this vocabulary doesn't need revisiting
 # when T4 lands.
-VALID_REFINEMENT_STRATEGIES = ("identity", "oracle", "nearest_centroid")
+VALID_REFINEMENT_STRATEGIES = (
+    "identity", "oracle", "nearest_centroid",
+    # assignment-classifier ticket: target-pair strategies (harness/assignment_strategies.py)
+    "nc_target", "constrained_target", "knn_target_k5", "knn_target_k10", "knn_target_k25",
+)
+# Model-backed assignment strategies are named "<prefix><model_id>"; the model
+# id is open-ended, so these are matched by prefix.
+VALID_REFINEMENT_STRATEGY_PREFIXES = ("classifier:", "classifier_hungarian:")
 
 # Which clustering algorithm a run used, as selected by `--clustering-model`.
 #
@@ -150,7 +157,9 @@ def write_manifest(
             f"got {run_config['condition']!r}"
         )
 
-    if run_config["refinement_strategy"] not in VALID_REFINEMENT_STRATEGIES:
+    if run_config["refinement_strategy"] not in VALID_REFINEMENT_STRATEGIES and not str(
+        run_config["refinement_strategy"]
+    ).startswith(VALID_REFINEMENT_STRATEGY_PREFIXES):
         raise RunManifestError(
             f"run_config['refinement_strategy'] must be one of "
             f"{VALID_REFINEMENT_STRATEGIES}, got {run_config['refinement_strategy']!r}"

@@ -309,7 +309,33 @@ REFINEMENT_STRATEGIES: Dict[str, Callable] = {
 }
 
 
-def get_refinement_strategy(name: str) -> Callable:
+def get_refinement_strategy(name: str, pipeline=None) -> Callable:
     """Look up a refinement strategy by name. Raises KeyError on an unknown
-    name -- config-driven selection needs a clear failure for typos."""
-    return REFINEMENT_STRATEGIES[name]
+    name -- config-driven selection needs a clear failure for typos.
+
+    Assignment-classifier strategies (harness/assignment_strategies.py) are
+    built per run and bound to `pipeline`, because under HDBSCAN they read the
+    clustering's outlier diagnostics for the file just clustered."""
+    if name in REFINEMENT_STRATEGIES:
+        return REFINEMENT_STRATEGIES[name]
+    from harness.assignment_strategies import build, is_assignment_strategy
+
+    if is_assignment_strategy(name):
+        return build(name, pipeline)
+    raise KeyError(name)
+
+
+def is_valid_refinement_strategy(name: str) -> bool:
+    from harness.assignment_strategies import is_assignment_strategy
+
+    return name in REFINEMENT_STRATEGIES or name == "oracle" or is_assignment_strategy(name)
+
+
+def refinement_id_for(name: str, oracle_scope=None) -> str:
+    """The final-cache-key id for a strategy. Model-backed strategies include
+    the model file's sha256, so retraining always moves the key (ticket A8)."""
+    if name == "oracle":
+        return f"oracle:{oracle_scope or 'all_pairs'}"
+    from harness.assignment_strategies import is_assignment_strategy, refinement_id
+
+    return refinement_id(name) if is_assignment_strategy(name) else name

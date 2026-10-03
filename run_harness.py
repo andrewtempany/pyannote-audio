@@ -25,7 +25,12 @@ from harness.cache_id import pipeline_config_id as build_pipeline_config_id
 from harness.config import HarnessConfig
 from harness.datasets import AMIDatasetAdapter
 from harness.intermediate_cache import IntermediateCache
-from harness.refinement import get_refinement_strategy, make_oracle_strategy
+from harness.refinement import (
+    get_refinement_strategy,
+    is_valid_refinement_strategy,
+    make_oracle_strategy,
+    refinement_id_for,
+)
 from harness.reporter import write_report
 from harness.run_manifest import (
     CLUSTERING_MODEL_CLASSES,
@@ -124,13 +129,9 @@ def run_harness(
     # oracle's pipeline.refinement is rebuilt per file inside the loop
     # below, right before that file is run. See T4's Implementation Notes.
     if refinement_strategy != "oracle":
-        pipeline.refinement = get_refinement_strategy(refinement_strategy)
+        pipeline.refinement = get_refinement_strategy(refinement_strategy, pipeline)
 
-    refinement_id = (
-        f"{refinement_strategy}:{oracle_scope or 'all_pairs'}"
-        if refinement_strategy == "oracle"
-        else refinement_strategy
-    )
+    refinement_id = refinement_id_for(refinement_strategy, oracle_scope)
     # Second cache tier. Keyed on `intermediate_config_id_value`, which
     # EXCLUDES clustering configuration so that segmentation and embeddings are
     # shared across every point of a clustering sweep -- the entire reason the
@@ -618,8 +619,10 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     )
     parser.add_argument(
         "--refinement-strategy", default="identity",
-        choices=["identity", "oracle", "nearest_centroid"],
-        help="Post-clustering refinement strategy (see harness/refinement.py).",
+        help="Post-clustering refinement strategy (see harness/refinement.py): identity, "
+        "oracle, nearest_centroid, or an assignment-classifier strategy (nc_target, "
+        "constrained_target, knn_target_k{5,10,25}, classifier:<model_id>, "
+        "classifier_hungarian:<model_id>; see harness/assignment_strategies.py).",
     )
     parser.add_argument(
         "--oracle-scope", default="all_pairs",
@@ -676,6 +679,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         "to this directory. Classes that report none produce an empty JSON.",
     )
     args = parser.parse_args(argv)
+    if not is_valid_refinement_strategy(args.refinement_strategy):
+        parser.error(f"unknown --refinement-strategy {args.refinement_strategy!r}")
 
     config = HarnessConfig.load(
         data_root=args.data_root,
