@@ -33,14 +33,14 @@ Re-read this file and the ticket's "Blocked on Andrew" + "Implementation Notes" 
 - [x] Download dev, train Mix-Headset
 - [x] A2: check every WAV header; repair; list repaired files
 - [x] convert_for_harness.sh train / dev; RTTM/UEM counts match audio
-- [ ] Cold VBx identity on dev, then train (GPU); record DER
-- [ ] HDBSCAN leaf/40 identity on dev, train (CPU, cache hits only); A6 tally
+- [~] Cold VBx identity: dev 16.90% done; train running (GPU)
+- [~] HDBSCAN identity: dev 17.19% (18/18 hits, A6 ok for dev); train pending
 - [ ] Commit WS1
 
 ## WS2 Pair dataset
 - [x] Predictions recorded in ticket before WS2 (already in §6; confirm unchanged)
-- [ ] `harness/assignment_dataset.py` + tests (incl. hard-fail 4 loader-patch test)
-- [ ] parquet per split × method
+- [x] `harness/assignment_dataset.py` + tests (incl. hard-fail 4 loader-patch test)
+- [~] per split × method as .csv.gz (pyarrow missing): test, dev done; train pending
 - [ ] dataset_stats.md: target counts, labelled share, floor pair accuracy by overlap bin
 - [ ] Plain-language floor note to Andrew
 - [ ] Commit WS2
@@ -54,7 +54,7 @@ Re-read this file and the ticket's "Blocked on Andrew" + "Implementation Notes" 
 ## WS4 Learned
 - [ ] Grid on dev pair acc → dev_selection.csv
 - [ ] Freeze best per type × method + pooled; models/<id>/ with sha256
-- [ ] `classifier:<model_id>` strategy; refinement_id includes sha256; key-distinctness test
+- [x] `classifier:<model_id>` strategy; refinement_id includes sha256; key-distinctness test
 - [ ] Test once per frozen model × method (with/without constraint)
 - [ ] Commit WS4
 
