@@ -48,7 +48,37 @@
       "Bash(python -m json.tool:*)",
       "Bash(python --version)",
       "Bash(./diarisation-env/Scripts/python.exe -m pytest:*)",
-      "Read(//c/Users/Andrew/Code/AMI-diarization-setup/**)"
+      "Read(//c/Users/Andrew/Code/AMI-diarization-setup/**)",
+      "Bash(python run_harness.py:*)",
+      "Bash(./diarisation-env/Scripts/python.exe run_harness.py:*)",
+      "Bash(python -m harness.:*)",
+      "Bash(./diarisation-env/Scripts/python.exe -m harness.:*)",
+      "Bash(python harness/:*)",
+      "Bash(./diarisation-env/Scripts/python.exe harness/:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git switch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(curl --fail --location:*)",
+      "Bash(bash pyannote/download_ami_split.sh:*)",
+      "Bash(bash pyannote/download_ami_test_split.sh:*)",
+      "Bash(bash pyannote/convert_for_harness.sh:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(ln:*)",
+      "Bash(mv:*)",
+      "Bash(touch:*)",
+      "Edit(//c/Users/Andrew/Code/AMI-diarization-setup/**)",
+      "Write(//c/Users/Andrew/Code/AMI-diarization-setup/**)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)"
     ]
   }
 }
