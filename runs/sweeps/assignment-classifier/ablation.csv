@@ -1,0 +1,7 @@
+method,without,n_features,dev_pair_acc
+vbx,(none),17,0.7206536687970229
+vbx,temporal,12,0.7189547771215921
+vbx,similarity,11,0.5784726154841842
+hdbscan,(none),17,0.7629415433463741
+hdbscan,temporal,12,0.7621761070476838
+hdbscan,similarity,11,0.501360775642116

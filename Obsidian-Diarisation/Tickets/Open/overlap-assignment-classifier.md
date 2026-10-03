@@ -313,6 +313,19 @@ Follow the vault workflow in `CLAUDE.md`. Convert this ticket into `Docs/Assignm
 
 _(newest first)_
 
+### 2026-10-04 — learned models improve pair accuracy but worsen DER on VBx (non-blocking; continuing as written)
+
+On the 16 test meetings, VBx:
+- Trained models, plain argmax: pair accuracy **71–73%** (best of anything, up from 44% for VBx and 67% for nearest centroid), but DER **+0.10 to +0.17 worse**.
+- Same models with the one-speaker-per-chunk step: pair accuracy back to 45%, but DER **better**. The MLP gives −0.14 [−0.25, −0.03].
+- Nearest neighbours (no training) is still the best DER: −0.20.
+
+Why: the "correct" label often puts an overlapped voice with the *other* person in its chunk (see the collision note below). If two voices in a chunk share a speaker, the pipeline still needs a second speaker for the overlapped frames and fills it with another cluster, which adds confusion. So the better a model learns the label, the more of these merges it makes. **Pair accuracy, as the ticket defines it, is not a good stand-in for DER on these voices.** Model selection on dev pair accuracy therefore optimises the wrong thing.
+
+Nothing looks broken: missed speech, false alarm and overlap regions are unchanged on every run, and every model has its own cache id.
+
+*Suggested follow-up (not started, since it changes the plan):* a "collision-free" label. Within each chunk, match voices to reference speakers one-to-one, by overlap, before mapping to clusters. Then retrain the same models, or select on dev DER instead of pair accuracy. Say if you want it; otherwise I finish the ticket as written and report this as the headline.
+
 ### 2026-10-03 — WS3 check-in (informational; continuing unless you object)
 
 **How often the clustering already picks the right speaker for hard-to-place voices (the floor):**
@@ -427,3 +440,23 @@ _(filled in WS6)_
 - Baseline DER by split (VBx / HDBSCAN): train 15.65 / pending · dev 16.90 / 17.19 · test 17.05 / 16.86. Train being lowest fits the A7 caveat (community-1 likely trained on AMI train). HDBSCAN beats VBx on test but not on dev.
 - Intermediate cache: 186 entries, 682 MB, including 16 orphaned pre-batch-size entries. A9 holds: well under 1 GB.
 - Train downloads repaired 21 files. Upstream's hard-coded list misses some of these, e.g. IS1000a/b/d, IS1002b, IS1003b/d, IS1005c, IS1006a/d, IS1007b. This supports checking every file instead of relying on a list.
+
+**WS4, 2026-10-04**
+- Grids run with `harness/assignment_models.py grid`. Each is 36 fits on train rows, with dev pair accuracy from the argmax decision recorded in `dev_selection.csv`. VBx: 805k train rows, 7 min with n_jobs=4. HDBSCAN and pooled took longer: more rows, and the MLP is the slow one.
+- Selection: highest dev acc per type; within 0.2 points the simpler setting wins (`complexity()`: smaller depth/iterations/net). Every type landed on its simplest strong setting: LR C=0.01; HGB lr 0.05, depth 3, 200 iterations, l2 1; MLP (64,), alpha 1e-3.
+- Dev pair acc, best of type (LR / HGB / MLP) vs the floors:
+  - VBx: 71.7 / 72.1 / 72.1, against identity 51.4, NC 70.5, kNN25 70.9.
+  - HDBSCAN: 76.1 / 76.3 / 76.2, against identity/NC 75.6.
+  - Pooled: 74.2 / 74.6 / 74.5.
+  - So learning adds about 1.5 points on VBx and under 1 on HDBSCAN.
+- Frozen models: `vbx-{lr,hgb,mlp}`, `hdbscan-{lr,hgb,mlp}`, `pooled-hgb` (HGB beats MLP across types within 0.2 → simpler), plus the WS5 `*-hgb-devonly`. Each has `config.json` (features, params, train meetings, seed, dev acc) and `sha256.txt`. `freeze()` refuses to overwrite an existing folder.
+- Test, VBx (see RUN_INDEX): argmax models have the highest pair acc (71–73%) but DER +0.10 to +0.17. With the Hungarian step: 45% acc, DER −0.02 to −0.14 (MLP −0.14 [−0.25, −0.03]). See the "Blocked on Andrew" note of 2026-10-04 for why. kNN25 (−0.20) remains the best DER.
+- "Best model per method" for WS5 = HGB for both. On VBx the MLP was only 0.03 points ahead of HGB on dev, so the tie rule applies.
+
+**WS5, 2026-10-04 (dev only)** — `harness/assignment_analysis.py`
+- Permutation importance (feature groups permuted jointly, 5 repeats, seed 0), dev pair acc drop for VBx / HDBSCAN:
+  - similarity **31.9 / 42.7** points;
+  - temporal 2.7 / 1.4;
+  - constraint-size 0.8 / 0.0;
+  - quality 0.5 / 0.2.
+- Ablation (retrain HGB on train, evaluate on dev): without temporal 71.9 / 76.2 (−0.2 / −0.1); without similarity 57.8 / 50.1. Temporal context is largely redundant with similarity. §6's prediction "temporal is the most important group" **did not hold**.

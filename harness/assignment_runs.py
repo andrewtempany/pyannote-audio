@@ -105,12 +105,21 @@ def run_point(run_point: str, method: str, strategy: str, note: str = "", model_
     (out_dir / "run.log").write_text(proc.stdout + "\n--- stderr ---\n" + proc.stderr, encoding="utf-8")
     if proc.returncode != 0:
         raise RuntimeError(f"run_harness failed ({proc.returncode}); see {out_dir / 'run.log'}")
-    tally = re.search(r"intermediate cache: (.*?) \(", proc.stdout)
+    manifests = [m for m in sorted(set(Path(ac.REPO / "runs").glob("*.json")) - before)
+                 if json.loads(m.read_text())["run_config"].get("notes") == notes]
+    if len(manifests) != 1:
+        raise RuntimeError(f"expected one new manifest with notes {notes!r}, found {manifests}")
+    return finalize(run_point, method, strategy, note, model_id, rid, manifests[0].stem,
+                    proc.stdout, round(time.time() - started))
+
+
+def finalize(run_point, method, strategy, note, model_id, rid, run_id, stdout, seconds) -> dict:
+    """Checks and ledger record for a completed harness run (also used to record a run
+    whose harness step finished but whose bookkeeping was interrupted)."""
+    out_dir = POINTS_DIR / run_point
+    tally = re.search(r"intermediate cache: (.*?) \(", stdout)
     if not tally or tally.group(1) != "16 full hit(s), 0 partial, 0 miss(es), 0 write(s)":
         raise HardFail(f"cache tally {tally.group(1) if tally else '?'} (hard-fail 7)")
-    manifests = sorted(set(Path(ac.REPO / "runs").glob("*.json")) - before)
-    if len(manifests) != 1:
-        raise RuntimeError(f"expected one new manifest, found {manifests}")
 
     summary = json.loads((out_dir / "summary.json").read_text())
     ident = json.loads((IDENTITY[method] / "summary.json").read_text())
@@ -121,7 +130,7 @@ def run_point(run_point: str, method: str, strategy: str, note: str = "", model_
     acc = offline_pair_accuracy(method, strategy)
     acc.to_csv(out_dir / "pair_accuracy.csv", index=False)
     record = {"run_point": run_point, "method": method, "strategy": strategy, "model_id": model_id,
-              "refinement_id": rid, "run_id": manifests[0].stem, "seconds": round(time.time() - started),
+              "refinement_id": rid, "run_id": run_id, "seconds": seconds,
               "summary": summary, "note": note}
     with LEDGER.open("a") as f:
         f.write(json.dumps(record) + "\n")
