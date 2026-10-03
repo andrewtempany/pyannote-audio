@@ -1,6 +1,6 @@
 # Assignment classifier — task checklist
 
-Ticket: `Obsidian-Diarisation/Tickets/Open/overlap-assignment-classifier.md`
+Ticket: converted to `Obsidian-Diarisation/Docs/Assignment Classifier Results.md` (2026-10-04).
 Branch: `assignment-classifier` (off `clustering-benchmark`). Don't push.
 Re-read this file and the ticket's "Blocked on Andrew" + "Implementation Notes" after any context reset.
 
@@ -33,17 +33,17 @@ Re-read this file and the ticket's "Blocked on Andrew" + "Implementation Notes" 
 - [x] Download dev, train Mix-Headset
 - [x] A2: check every WAV header; repair; list repaired files
 - [x] convert_for_harness.sh train / dev; RTTM/UEM counts match audio
-- [~] Cold VBx identity: dev 16.90% done; train running (GPU)
-- [~] HDBSCAN identity: dev 17.19% (18/18 hits, A6 ok for dev); train pending
-- [ ] Commit WS1
+- [x] Cold VBx identity: dev 16.90% done; train running (GPU)
+- [x] HDBSCAN identity: dev 17.19% (18/18 hits, A6 ok for dev); train pending
+- [x] Commit WS1
 
 ## WS2 Pair dataset
 - [x] Predictions recorded in ticket before WS2 (already in §6; confirm unchanged)
 - [x] `harness/assignment_dataset.py` + tests (incl. hard-fail 4 loader-patch test)
-- [~] per split × method as .csv.gz (pyarrow missing): test, dev done; train pending
-- [ ] dataset_stats.md: target counts, labelled share, floor pair accuracy by overlap bin
-- [ ] Plain-language floor note to Andrew
-- [ ] Commit WS2
+- [x] per split × method as .csv.gz (pyarrow missing): test, dev done; train pending
+- [x] dataset_stats.md: target counts, labelled share, floor pair accuracy by overlap bin
+- [x] Plain-language floor note to Andrew
+- [x] Commit WS2
 
 ## WS3 Non-learned
 - [x] `nc_target`, `constrained_target`, `knn_target` (k by dev pair acc) + tests
@@ -52,19 +52,19 @@ Re-read this file and the ticket's "Blocked on Andrew" + "Implementation Notes" 
 - [x] Commit WS3
 
 ## WS4 Learned
-- [ ] Grid on dev pair acc → dev_selection.csv
-- [ ] Freeze best per type × method + pooled; models/<id>/ with sha256
+- [x] Grid on dev pair acc → dev_selection.csv
+- [x] Freeze best per type × method + pooled; models/<id>/ with sha256
 - [x] `classifier:<model_id>` strategy; refinement_id includes sha256; key-distinctness test
-- [ ] Test once per frozen model × method (with/without constraint)
-- [ ] Commit WS4
+- [x] Test once per frozen model × method (with/without constraint)
+- [x] Commit WS4
 
 ## WS5 Checks
-- [ ] Shift: NC acc + DER across splits; dev-only retrain → test once
-- [ ] Permutation importance by group on dev; ablations (no temporal, no similarity) on dev
-- [ ] Bootstrap 90% CIs (2000, seed 0)
-- [ ] Commit WS5
+- [x] Shift: NC acc + DER across splits; dev-only retrain → test once
+- [x] Permutation importance by group on dev; ablations (no temporal, no similarity) on dev
+- [x] Bootstrap 90% CIs (2000, seed 0)
+- [x] Commit WS5
 
 ## WS6 Write-up
-- [ ] Results table, figures/, top-3 meetings, plain summary
-- [ ] Convert ticket → Docs/Assignment Classifier Results.md; AMI Corpus Setup train/dev section
-- [ ] Commit
+- [x] Results table, figures/, top-3 meetings, plain summary
+- [x] Convert ticket → Docs/Assignment Classifier Results.md; AMI Corpus Setup train/dev section
+- [x] Commit

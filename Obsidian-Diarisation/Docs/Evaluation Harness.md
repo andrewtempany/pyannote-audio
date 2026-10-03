@@ -71,6 +71,7 @@ The orchestrator (`run_harness.py`, see [[Orchestrator]]) owns wiring all of thi
 | Post-clustering refinement hook | `harness/refinement.py`, `src/pyannote/audio/pipelines/speaker_diarization.py` | [[Post-Clustering Refinement Hook]] |
 | Oracle segmentation provider | `harness/segmentation.py` (`OracleSegmentation`) | [[Oracle Segmentation Provider]] |
 | Oracle assignment strategy | `harness/refinement.py` (`make_oracle_strategy`) | [[Oracle Assignment Strategy]] |
+| Assignment classifier (target-pair strategies, pair dataset, learned models) | `harness/assignment_*.py` | [[Assignment Classifier Results]] |
 | Cross-condition deltas table | `harness/aggregate_runs.py` (`build_cross_condition_table`) | [[Cross-Condition Deltas]] |
 
 ## Metrics produced

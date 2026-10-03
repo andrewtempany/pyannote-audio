@@ -17,7 +17,7 @@ benchmark` CLI can be run as an independent cross-check against the harness's ow
 result. Both were run to completion and agree with each other and with the published
 reference DER — see Validation result below.
 
-SDM and the dev split are not covered here; see Follow-ons.
+The train and dev splits were added later; see AMI train/dev below. SDM is not covered; see Follow-ons.
 
 ## Why two separate data layouts
 
@@ -133,17 +133,48 @@ For any report's Statement/attribution section:
 but preprocessed/chunked for fine-tuning segmentation models — the wrong shape for
 full-file DER benchmarking.
 
+## AMI train/dev
+
+Added for [[Assignment Classifier Results]]. Same layout and tooling as test, so `run_harness.py --split {train,dev}` works unchanged.
+
+**Download:** `pyannote/download_ami_split.sh <split> <dest>`, run from the AMI-diarization-setup checkout with `<dest> = pyannote`.
+- It generalises the test-only script. It reads `lists/<split>.meetings.txt` with CRLF stripped and fetches over https with `curl --fail --location`.
+- A `.done` marker per file lets an interrupted download resume.
+- Set `PYTHON=<path to diarisation-env python>` for the header check.
+
+**Repairs, by checking rather than a list.** Upstream `download_ami.sh` repairs a hard-coded list of IS-series WAVs. The new script instead checks **every** file: the RIFF size against the file size, and where the data chunk ends against the file end. Any mismatch is rewritten through Python's `wave` (the same repair as IS1009).
+- Before use, it was checked against the 16 test files (none flagged) and a deliberately truncated file (flagged and repaired).
+- **Dev:** 4 repaired (IS1008a–d).
+- **Train:** 21 repaired: IS1000a/b/d, IS1002b/c, IS1003b/c/d, IS1004a–d, IS1005a/b/c, IS1006a/c/d, IS1007a/b/c. The data chunks ended 74–1,383 bytes before the file end.
+- Several of these are not in upstream's list, which is the reason to check every file.
+
+**Validation after repair:** all 154 train/dev files open with `wave`, are 16 kHz, cover their UEM end, and decode their last second.
+- **ES2010d (train) is stereo**, with byte-identical channels. The pipeline downmixes (`speaker_diarization.py:280`), so this is harmless.
+
+**Conversion:** `pyannote/convert_for_harness.sh <harness-data> {dev,train}` (it already took a split argument).
+- It writes `IHM/{dev,train}.rttm` / `.uem` (18 / 136 URIs, matching the lists) and hardlinks the audio.
+- `harness-data/IHM/audio/` now holds 170 files: 16 test + 18 dev + 136 train.
+
+**Sizes:** `pyannote/amicorpus/` is 11 GB for all 170 meetings. The pre-clustering cache grew to 186 entries / 682 MB after cold runs over dev (about 37 min on an RTX 3060) and train (about 5 h).
+
+**Baselines** (community-1, VBx / HDBSCAN leaf/40, DER %):
+- train 15.65 / 17.07;
+- dev 16.90 / 17.19;
+- test 17.05 / 16.86.
+
+Train is lowest under VBx, consistent with community-1 likely having been trained on AMI train (not verified against a model card).
+
 ## Follow-ons
 
 - Add the SDM condition (`AMI-SDM.SpeakerDiarization.only_words`) — the same
   per-meeting-to-combined conversion gap will apply there too.
-- Download the dev split if threshold tuning is required later.
 - Oracle segmentation injection interface (deferred; see
   [[Segmentation Source Interface]]).
 
 ## Key files
 
 - `~/Code/AMI-diarization-setup/pyannote/download_ami_test_split.sh`
+- `~/Code/AMI-diarization-setup/pyannote/download_ami_split.sh` (train/dev/any split)
 - `~/Code/AMI-diarization-setup/pyannote/convert_for_harness.sh`
 - `~/Code/AMI-diarization-setup/pyannote/database.yml`
 - This repo's `.env` — `PYANNOTE_DATABASE_CONFIG`
