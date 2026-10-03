@@ -209,6 +209,13 @@ The interpretation is the deliverable. Do not append recommended next steps.
 
 _Append while the work happens. Defaults first._
 
+### Tune/report split (fixed 2026-10-03 by [[Clustering Benchmark Results]]; reuse unchanged)
+
+- **Tune half:** meetings ending in `a` or `c`: EN2002a, EN2002c, ES2004a, ES2004c, IS1009a, IS1009c, TS3003a, TS3003c.
+- **Report half:** meetings ending in `b` or `d`: the other 8.
+- Each recording series appears twice in each half. Half-level DER = sum(MD + FA + Conf) / sum(reference speech) over that half's per-file rows (reference per file = (MD + FA + Conf) / der), not the mean of per-file DER.
+- Baseline (db977741) on this split: tune 16.26, report 17.73, all 17.05. Tooling: `harness/clustering_benchmark.py` (driver/ledger; it maps `vbx` to `VBxClustering`, but VBx sweep points also need a `clustering_vbx` value added to `VALID_CONDITIONS` first) and `harness/clustering_benchmark_report.py` (selection, paired bootstrap).
+
 ## On completion
 
 Fold into [[clustering-method-comparison]]'s results table and write a short

@@ -222,10 +222,12 @@ Say so rather than ranking methods separated by less than that.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **VBx (shipped default)** | self, threshold | 17.05 | 2925.05 | 1099.07 | 1212.15 | 0.25 | 12/16 | **the baseline.** `Fa=0.07, Fb=0.8, threshold=0.6` |
 | VBx (tuned) | self, threshold | | | | | | | from [[clustering-vbx]] |
-| Agglomerative | self, threshold | | | | | | | untested alternative; from [[agglomerative-hyperparameter-review]] |
-| Spectral | eigengap | | | | | | | |
+| Agglomerative | self, threshold | 16.87 (report 17.54) | 2925.05 | 1099.07 | 1156.6 | 0.188 | 13/16 | centroid, min_cluster_size 12, threshold 0.75. Report-half Δ −0.20 [−0.65, +0.31]: no clear difference. See [[Clustering Benchmark Results]] |
+| Spectral | eigengap | 17.16 (report 17.86) | 2925.05 | 1099.07 | 1246.4 | 0.25 | 13/16 | pruning 0.20, max_speakers 10. Report-half Δ +0.13 [−0.87, +1.45]: no clear difference. See [[Clustering Benchmark Results]] |
 | KMeans | eigengap | | | | | | | |
-| HDBSCAN | self | | | | | | | |
+| HDBSCAN | self | 16.86 (report 17.18) | 2925.05 | 1099.07 | 1152.7 | 0.188 | 14/16 | leaf, min_cluster_size 40, min_samples default; outliers folded to nearest centroid. Report-half Δ −0.55 [−1.08, −0.14], but tune half +0.22 worse. See [[Clustering Benchmark Results]] |
+
+DER column: all 16 meetings, with the report half (b/d meetings) in brackets; settings selected on the tune half (a/c). MD and FA are identical for every clustering method by construction (see [[Clustering Benchmark Results]], "Clustering only moves confusion").
 
 Plus one sensitivity curve per method.
 

@@ -151,6 +151,11 @@ def _sweep_chart(path, title, panels, xlabel, baseline, logx=False):
                     transform=der_ax.get_yaxis_transform(), color=TEXT_2, fontsize=7.5,
                     va="bottom", ha="right")
         mae_ax.axhline(baseline["all"]["count_mae"], color=TEXT_2, linewidth=1, linestyle=(0, (4, 3)))
+        if logx:
+            ticks = sorted({r[0] for rows in series.values() for r in rows})
+            for ax in (der_ax, mae_ax):
+                ax.set_xticks(ticks, [f"{t:g}" for t in ticks])
+                ax.minorticks_off()
         for i, (name, rows) in enumerate(series.items()):
             rows = sorted(rows)
             xs = [r[0] for r in rows]
@@ -184,7 +189,8 @@ def charts() -> list:
         panels = []
         for family, names in (("cosine linkages", COSINE_LINKAGES),
                               ("euclidean linkages (unit-normalised)", EUCLIDEAN_LINKAGES)):
-            series = {n: _xy([p for p in agg if p["params"]["method"] == n], "threshold") for n in names}
+            series = {n + (" (off its own scale, see notes)" if n == "ward" else ""):
+                      _xy([p for p in agg if p["params"]["method"] == n], "threshold") for n in names}
             series = {n: rows for n, rows in series.items() if rows}
             if series:
                 panels.append((family, series))
@@ -219,7 +225,8 @@ def best_points() -> dict:
 def error_profile_chart(best: dict):
     plt = _pyplot()
     base = _baseline()["all"]
-    labels = ["VBx (baseline)"] + [f"{m}\n{best[m]['params_text']}" for m in best]
+    short = {"agglomerative": "centroid, t=0.75", "hdbscan": "leaf, mcs=40", "spectral": "pruning=0.20"}
+    labels = ["VBx\n(baseline)"] + [f"{m}\n{short.get(m, best[m]['point_id'])}" for m in best]
     rows = [base] + [best[m]["metrics"]["all"] for m in best]
     fig, ax = plt.subplots(figsize=(8.5, 4.8))
     fig.patch.set_facecolor(SURFACE)
@@ -229,10 +236,13 @@ def error_profile_chart(best: dict):
         values = np.array([r[key] for r in rows])
         ax.bar(range(len(rows)), values, bottom=bottom, color=SERIES[i], width=0.55,
                edgecolor=SURFACE, linewidth=2, label=name)
+        if key == "conf":
+            for x, (b, v) in enumerate(zip(bottom, values)):
+                ax.text(x, b + v / 2, f"confusion {v:.0f} s", ha="center", va="center", color=TEXT, fontsize=7.5)
         bottom += values
     for x, total in enumerate(bottom):
         ax.text(x, total + 30, f"{total:.0f} s", ha="center", va="bottom", color=TEXT_2, fontsize=8)
-    ax.set_xticks(range(len(rows)), labels, fontsize=7, color=TEXT_2)
+    ax.set_xticks(range(len(rows)), labels, fontsize=8, color=TEXT_2)
     ax.set_ylabel("error, seconds (all 16 meetings)", color=TEXT_2, fontsize=9)
     ax.set_ylim(0, bottom.max() * 1.15)
     ax.legend(frameon=False, fontsize=8, labelcolor=TEXT, ncols=3, loc="upper left")

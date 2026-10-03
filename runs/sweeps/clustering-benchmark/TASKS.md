@@ -41,9 +41,11 @@ Driver: `python -m harness.clustering_benchmark {baseline|run|index}`. Ledger: `
 - [x] Commit WS3
 
 ## WS4 write-up
-- [ ] Results table (+ bootstrap 90% CI on report-half delta)
-- [ ] Charts per method
-- [ ] Error profiles table + stacked bar chart; strength/weakness lines; best/worst 3 meetings vs VBx
-- [ ] HDBSCAN outlier summary
-- [ ] Plain-language summary
-- [ ] Ticket -> Docs conversion (benchmark + three method notes); split written into clustering-vbx
+- [x] Results table (+ bootstrap 90% CI on report-half delta)
+- [x] Charts per method
+- [x] Error profiles table + stacked bar chart; strength/weakness lines; best/worst 3 meetings vs VBx
+- [x] HDBSCAN outlier summary
+- [x] Plain-language summary
+- [x] Ticket -> Docs conversion (benchmark + three method notes); split written into clustering-vbx
+
+Closed 2026-10-03. Ward on its own scale (thresholds ~4-20) proposed, not approved; documented as untested.
