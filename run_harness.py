@@ -61,6 +61,32 @@ def _audio_path(config: HarnessConfig, uri: str) -> Path:
     return config.data_root / config.condition / "audio" / f"{uri}.wav"
 
 
+def _write_clustering_diagnostics(
+    diagnostics: Dict[str, Any], out_dir: Union[str, Path]
+) -> None:
+    """Write `{uri: scalars}` to diagnostics.json, and any per-embedding
+    `rows` a class reported to diagnostics_rows.csv (one row per training
+    embedding, `uri` prepended). Files missing from the JSON were served from
+    the final-RTTM cache, so clustering never ran for them."""
+    import csv
+    import json
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    scalars = {
+        uri: {k: v for k, v in d.items() if k != "rows"} for uri, d in diagnostics.items()
+    }
+    (out_dir / "diagnostics.json").write_text(json.dumps(scalars, indent=1, default=float))
+    rows = [
+        {"uri": uri, **row} for uri, d in diagnostics.items() for row in d.get("rows", [])
+    ]
+    if rows:
+        with open(out_dir / "diagnostics_rows.csv", "w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+
+
 def run_harness(
     config: HarnessConfig,
     pipeline: Any,
@@ -80,6 +106,7 @@ def run_harness(
     intermediate_config_id_value: Optional[str] = None,
     clustering_config: Optional[str] = None,
     use_intermediate_cache: bool = True,
+    clustering_diagnostics_dir: Optional[Union[str, Path]] = None,
 ) -> Dict[str, float]:
     der = DiarizationErrorRate(collar=config.der_collar, skip_overlap=config.der_skip_overlap)
     overlap_der = DiarizationErrorRate(
@@ -160,7 +187,15 @@ def run_harness(
     # explains a surprising DER (particularly via "unmapped_speaker") without
     # needing a schema change to quote in a report.
     oracle_pair_counts: Dict[str, int] = {}
+    # Optional per-file diagnostics a clustering class may leave on itself as
+    # `last_diagnostics` (the clustering-benchmark classes do; the library's
+    # own classes do not, and are untouched). Reset before every file so a
+    # final-RTTM cache hit -- which skips clustering entirely -- can never be
+    # credited with the previous file's diagnostics.
+    clustering_diagnostics: Dict[str, Any] = {}
     for uri, reference, uem in adapter:
+        if clustering_diagnostics_dir is not None:
+            pipeline.clustering.last_diagnostics = None
         oracle_strategy = None
         if refinement_strategy == "oracle":
             oracle_strategy = make_oracle_strategy(
@@ -169,6 +204,10 @@ def run_harness(
             pipeline.refinement = oracle_strategy
         file = {"uri": uri, "audio": str(_audio_path(config, uri))}
         hypothesis = runner.run(file)
+        if clustering_diagnostics_dir is not None:
+            diagnostics = getattr(pipeline.clustering, "last_diagnostics", None)
+            if diagnostics is not None:
+                clustering_diagnostics[uri] = diagnostics
         row = score(reference, hypothesis, uem, der, overlap_der, der_overlap_assigned, jer)
         row["uri"] = uri
         rows.append(row)
@@ -202,6 +241,9 @@ def run_harness(
             f"{total} pairs over {len(rows)} files): "
             + ", ".join(f"{path}={count}" for path, count in sorted(oracle_pair_counts.items()))
         )
+
+    if clustering_diagnostics_dir is not None:
+        _write_clustering_diagnostics(clustering_diagnostics, clustering_diagnostics_dir)
 
     summary = write_report(
         rows, der, overlap_der, der_overlap_assigned, jer, per_file_csv_path, summary_path
@@ -627,6 +669,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         help="Mark this run as counting toward the oracle/ceiling-analysis results table "
         "(T5). Defaults to False for exploratory/debugging runs.",
     )
+    parser.add_argument(
+        "--clustering-diagnostics-dir", default=None,
+        help="If set, write per-file diagnostics left by the clustering class "
+        "(`last_diagnostics`: e.g. HDBSCAN outlier counts, spectral estimated k) "
+        "to this directory. Classes that report none produce an empty JSON.",
+    )
     args = parser.parse_args(argv)
 
     config = HarnessConfig.load(
@@ -718,6 +766,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         intermediate_config_id_value=intermediate_id,
         clustering_config=clustering_config,
         use_intermediate_cache=not args.no_intermediate_cache,
+        clustering_diagnostics_dir=args.clustering_diagnostics_dir,
     )
     print(summary)
     return summary

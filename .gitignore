@@ -108,6 +108,11 @@ Obsidian-Diarisation/.obsidian/
 runs/*
 !runs/*.json
 !runs/comparison.csv
+# clustering-benchmark sweep outputs (per-point CSV/summary/diagnostics, ledger,
+# index). Run logs are regenerable noise and stay ignored.
+!runs/sweeps/
+!runs/sweeps/**/*.csv
+runs/sweeps/**/*.log
 
 # upstream ignores *.csv above; per-file scores are results
 !per_file_*.csv

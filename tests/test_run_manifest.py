@@ -157,7 +157,10 @@ def test_missing_required_run_config_field_raises(tmp_path, missing_field):
 
 @pytest.mark.parametrize(
     "condition",
-    ["baseline", "oracle_segmentation", "oracle_assignment", "nearest_centroid"],
+    [
+        "baseline", "oracle_segmentation", "oracle_assignment", "nearest_centroid",
+        "clustering_agglomerative", "clustering_hdbscan", "clustering_spectral",
+    ],
 )
 def test_condition_accepts_each_controlled_vocabulary_value(tmp_path, condition):
     run_config = _run_config(condition=condition)

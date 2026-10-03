@@ -42,6 +42,12 @@ VALID_CONDITIONS = (
     # silently merge two different experiments into one row.
     "oracle_segmentation_assignment",
     "nearest_centroid",
+    # Clustering-method sweep points (clustering-benchmark ticket). Baseline
+    # segmentation; only the clustering class differs. Distinct values so the
+    # cross-condition table never merges a sweep point into the baseline row.
+    "clustering_agglomerative",
+    "clustering_hdbscan",
+    "clustering_spectral",
 )
 
 # Conditions that score ground-truth segmentation rather than the pipeline's

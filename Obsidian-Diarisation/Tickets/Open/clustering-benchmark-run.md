@@ -1,5 +1,5 @@
 ---
-status: not-started
+status: in-progress
 created: 2026-10-03
 type: long-running-agent
 aliases: [clustering benchmark run]
@@ -330,6 +330,33 @@ _(newest first)_
 ## Implementation Notes
 
 _(append while working: decisions, rejected options, gotchas, files touched)_
+
+### 2026-10-03 kickoff: decisions from Andrew
+- Blanket approval for every harness run in §5; no per-run asks.
+- `--run-condition` is a closed vocabulary (`harness/run_manifest.py` `VALID_CONDITIONS`). Adding `clustering_agglomerative`, `clustering_hdbscan`, `clustering_spectral` there (additive, with test) rather than labelling sweep points `baseline`, which would merge them into the baseline row of the cross-condition table.
+- Data root: `../AMI-diarization-setup/harness-data` (sibling of the repo).
+- HDBSCAN: follow this ticket (fold outliers into nearest centroid). Report BOTH the outlier count (what HDBSCAN left unassigned) and DER after folding.
+- Count the embeddings dropped by `BaseClustering.filter_embeddings` (needs >= 20% of the chunk as single-speaker frames) per meeting. Those are not "failed": they are excluded from forming clusters but still assigned to the nearest centroid by `assign_embeddings`, which assigns ALL embeddings.
+- Spectral: this ticket's grid (`pruning` x `max_speakers`) wins over the older note's cosine/RBF + refinement-flag design; the per-file estimated k at each point gives the standalone counting result.
+- Predictions are the planner's, not Andrew's; record them but don't weight them.
+- min/max clusters: the pipeline always passes min=1, max=num_embeddings via `set_num_clusters`. Clamping is a no-op at those values. Andrew OK'd adjusting/removing the clamp if a boundary is ever reached.
+- Branch `clustering-benchmark` off `oracle-experiment` (after committing loose files, 92114560).
+- Baseline reference run: `db977741` (cold, batch-key rebuild), not `a1f4391c` cited in [[clustering-vbx]]; same DER.
+
+### Assumptions register (kickoff)
+- A1 verified: `CLUSTERING_MODEL_CLASSES` maps vocab -> enum name (run_manifest.py:99); pipeline resolves via `Clustering[clustering]` (speaker_diarization.py:284).
+- A4 verified: scikit-learn 1.9.0, `sklearn.cluster.HDBSCAN` imports. scipy 1.18.0, numpy 2.5.1.
+- A7 unverified (no network check): agglomerative centroid/12/0.70 point labelled "3.1-like setting (unverified)".
+- A2, A3, A5, A6, A8: pending tests / first runs.
+
+### WS0 (2026-10-03)
+- Tooling: `harness/clustering_benchmark.py` (driver + ledger: `baseline` / `run` / `index`). Each point goes through `run_harness.py`; the driver checks §7.1-7.4 on every point (final-key collision, cache tally must be exactly `16 full hit(s), 0 partial, 0 miss(es), 0 write(s)`, manifest `clustering_config` class + values, 3 consecutive identical CSVs) and regenerates `SWEEP_INDEX.md` from `points.jsonl`.
+- Harness hook: `run_harness.py --clustering-diagnostics-dir`. Reads an optional `last_diagnostics` attribute the new clustering classes set on themselves; reset to None before every file so a final-RTTM cache hit can't inherit the previous file's diagnostics. Existing classes untouched. Plain attributes on pyannote `Pipeline` objects are fine and don't enter the cache key (that reads `_flattened_parameters` only).
+- `.gitignore`: sweep outputs under `runs/sweeps/` are tracked (results, like manifests); run logs are not.
+- Baseline reference (db977741): all 17.05 / tune 16.26 / report 17.73. Half-level DER reproduces summary DER exactly. VBx over-counts on 4/16 meetings (2 per half), never under-counts.
+- **Gotcha, ticket §5 WS0.4:** "point `--cache-dir` at a fresh empty folder" would ALSO empty the intermediate tier (it lives at `<cache_dir>/intermediates/`) and force a cold GPU run, which is a §9 hard stop. Used a fresh scratch folder holding a COPY of `.harness_cache/intermediates` instead: RTTM tier empty, intermediate tier warm.
+- AGG-0-01 (centroid/12/0.70, "3.1-like setting (unverified)"): DER 17.94 (tune 17.98, report 17.89), MAE 0.50, 11/16. 16 full hits, 0 writes; manifest `AgglomerativeClustering(method='centroid', min_cluster_size=12, threshold=0.7)`. ~37 s per point.
+- AGG-0-02 (same, fresh RTTM cache): DER identical to 0.0, per-file CSV byte-identical. **A6 (agglomerative) and A8 verified.**
 
 ## Results
 
