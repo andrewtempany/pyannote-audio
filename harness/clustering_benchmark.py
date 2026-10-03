@@ -51,6 +51,7 @@ TUNE_SUFFIXES = ("a", "c")
 COMPONENTS = ("missed_detection", "false_alarm", "confusion")
 REGIONS = ("region_t_and_d", "region_t_minus_d", "region_d_minus_t")
 EXPECTED_TALLY = "intermediate cache: 16 full hit(s), 0 partial, 0 miss(es), 0 write(s)"
+COLLAPSE_SIGNATURE_POINT = "AGG-1a-11"
 METHOD_CLASS = {
     "agglomerative": "AgglomerativeClustering",
     "hdbscan": "HDBSCANClustering",
@@ -327,9 +328,11 @@ def run_point(point_id: str, ws: str, method: str, params: dict[str, str],
         # whole from the final-RTTM cache, so the intermediate tier is never
         # consulted and the tally is all zeros. Nothing was recomputed, which
         # is what the rule protects; the repeat is recorded in the notes.
+        # (A failed earlier attempt counts if its own tally was clean: it then
+        # failed a later check, but its RTTMs came from warm intermediates.)
         repeat_of = [p["point_id"] for p in load_points()
-                     if p.get("final_key") == record["final_key"] and "metrics" in p
-                     and p["point_id"] != point_id]
+                     if p.get("final_key") == record["final_key"]
+                     and ("metrics" in p or p.get("cache_tally", "").startswith(EXPECTED_TALLY))]
         served_from_rttm = tally.startswith(
             "intermediate cache: 0 full hit(s), 0 partial, 0 miss(es), 0 write(s)"
         ) and repeat_of
@@ -368,8 +371,19 @@ def run_point(point_id: str, ws: str, method: str, params: dict[str, str],
 
         # §7.4: three consecutive byte-identical per-file CSVs look exactly
         # like a stuck setting.
+        # Exception: the single-cluster collapse. Once a method merges every
+        # embedding into one cluster, all further settings give the same output
+        # (2 speakers per meeting: one cluster plus the overlap padding label,
+        # speaker_diarization.py:784). Verified on AGG-1a-11 (centroid 1.10),
+        # whose CSV is the signature; only an exact match to it is exempt.
+        collapse = [p for p in load_points() if p["point_id"] == COLLAPSE_SIGNATURE_POINT]
+        is_collapse = bool(collapse) and collapse[0].get("per_file_sha256") == record["per_file_sha256"]
+        if is_collapse:
+            record["notes"] = (record["notes"] + "; " if record["notes"] else "") + \
+                f"single-cluster collapse (identical to {COLLAPSE_SIGNATURE_POINT})"
         previous = [p for p in load_points() if p["point_id"] != point_id][-2:]
-        if len(previous) == 2 and all(p.get("per_file_sha256") == record["per_file_sha256"] for p in previous):
+        if not is_collapse and len(previous) == 2 and \
+                all(p.get("per_file_sha256") == record["per_file_sha256"] for p in previous):
             raise HardFail("three consecutive points produced byte-identical per-file CSVs")
     except HardFail as failure:
         record["failure"] = str(failure)

@@ -19,26 +19,26 @@ Driver: `python -m harness.clustering_benchmark {baseline|run|index}`. Ledger: `
 - [x] Commit WS0
 
 ## WS1 agglomerative
-- [ ] 1a centroid x 12 thresholds
-- [ ] 1b average x 12 thresholds
-- [ ] 1c min_cluster_size 1/3/6/12/20 at best of 1a/1b (tune half)
-- [ ] 1d complete/single/weighted/median/ward x 0.4/0.6/0.8/1.0/1.4 (+ edge points if best at edge)
-- [ ] Record effective min_cluster_size (needs num_train per file)
-- [ ] Commit WS1
+- [x] 1a centroid x 12 thresholds
+- [x] 1b average x 12 thresholds
+- [x] 1c min_cluster_size 1/3/6/12/20 at best of 1a/1b (tune half)
+- [x] 1d complete/single/weighted/median/ward x 0.4/0.6/0.8/1.0/1.4 (+ edge points if best at edge)
+- [x] Record effective min_cluster_size (needs num_train per file)
+- [x] Commit WS1
 
 ## WS2 HDBSCAN
-- [ ] Tests first (routing, final-key differs, no -1 labels) shown failing
-- [ ] `HDBSCANClustering` + enum + vocab; tests pass
-- [ ] 2a eom x 5, 2b leaf x 5, 2c min_samples 1/5 at best
-- [ ] Outlier rate per point; outliers.csv with overlap_fraction; dropped-by-filter count per meeting
-- [ ] Commit WS2
+- [x] Tests first (routing, final-key differs, no -1 labels) shown failing
+- [x] `HDBSCANClustering` + enum + vocab; tests pass
+- [x] 2a eom x 5, 2b leaf x 5, 2c min_samples 1/5 at best
+- [x] Outlier rate per point; outliers.csv with overlap_fraction; dropped-by-filter count per meeting
+- [x] Commit WS2
 
 ## WS3 spectral
-- [ ] Tests first (routing, final-key differs, eigengap k=3 on 3 blobs) shown failing
-- [ ] `SpectralEigengapClustering` + enum + vocab; tests pass
-- [ ] Speed check on first point (eigsh if > 60 s/file)
-- [ ] 3a pruning x 6, 3b max_speakers 6/15 at best
-- [ ] Commit WS3
+- [x] Tests first (routing, final-key differs, eigengap k=3 on 3 blobs) shown failing
+- [x] `SpectralEigengapClustering` + enum + vocab; tests pass
+- [x] Speed check on first point (eigsh if > 60 s/file)
+- [x] 3a pruning x 6, 3b max_speakers 6/15 at best
+- [x] Commit WS3
 
 ## WS4 write-up
 - [ ] Results table (+ bootstrap 90% CI on report-half delta)

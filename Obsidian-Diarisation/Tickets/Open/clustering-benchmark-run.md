@@ -327,6 +327,8 @@ Follow the vault workflow in `CLAUDE.md`:
 
 _(newest first)_
 
+- **2026-10-03: Ward linkage needs a different threshold scale (grid change, parked per §9).** Ward's 1d grid (0.4-1.4) behaves "backwards": 0.4 collapses to one cluster, 1.4 gives MAE 64 / DER 92%. Cause, checked on IS1009a's cached embeddings (unit-normalised, unfiltered): ward's last merge heights are 6.5, 7.4, 7.7, 12.7, 19.3, 38.5 vs centroid's ~1.1. At 0.4-1.4 ward is cutting deep inside speakers; every cluster is tiny, below min_cluster_size 12, so at 0.4 nothing is "large" and everything becomes one cluster, and as the threshold rises more fragments pass 12 and the count explodes. Its speaker-level range is roughly 5-20. **Proposal:** 6 extra ward points at threshold 4, 6, 8, 12, 16, 20 (~4 min). Caveat: >2.0 is outside `AgglomerativeClustering.threshold`'s declared `Uniform(0.0, 2.0)` search space (instantiate does not enforce it, but it is off the class's own map). **Default if no answer:** report ward as "not tested on its own scale" rather than as a loser.
+
 ## Implementation Notes
 
 _(append while working: decisions, rejected options, gotchas, files touched)_
@@ -376,6 +378,17 @@ _(append while working: decisions, rejected options, gotchas, files touched)_
 - Mechanism, from source: the frame-level number of active speakers comes from the segmentation alone (`speaker_count(binarized_segmentations)`, speaker_diarization.py:625), and `reconstruct` / `to_diarization` picks the top-`count` clusters per frame. When there are fewer clusters than `count`, extra labels are created (comment at :784). So a method that merges two overlapping speakers cannot erase the overlap: the second slot is still filled, by another cluster or a padded label.
 - Consequence: the ticket's §1 expectation ("merging overlapping speakers shrinks region_d_minus_t / region_t_and_d and raises MD") does not apply to this pipeline. All between-method DER differences are Confusion differences. Also explains AGG-1a-11/12: at threshold >= 1.10 every meeting collapses to one cluster but outputs exactly 2 speakers (the padded overlap label), giving byte-identical results that are real saturation, not a stuck setting.
 - Tie note: AGG-1a-07 (0.75) and AGG-1a-08 (0.80) tie on tune DER (16.10) but differ by 2 points on report (17.54 vs 19.58): the split is doing its job.
+
+### WS1 1a/1b done (2026-10-03)
+- Centroid: minimum at 0.75 (tune 16.10, report 17.54, all 16.87, MAE 0.188, 13/16). Average: minimum at 0.60 (tune 16.16, report 17.77, all 17.03). Both blow up below 0.5 (over-splitting) and above ~0.9 (merging); >= 1.10 every meeting collapses to one cluster (2 output speakers via overlap padding), identical across linkages.
+- Count MAE is not monotonic at the low end (centroid 0.30: 3.6, 0.40: 6.1): at very low thresholds most clusters are below min_cluster_size 12 and get absorbed into a few large ones, so the count is set by how many clusters reach 12, not by the threshold.
+- 1c selection (tune half only): best of 1a/1b = AGG-1a-07, centroid / 0.75 (tune 16.10, tune MAE 0.125). 1c sweeps min_cluster_size 1/3/6/12/20 there; 1c-04 (=12) repeats 1a-07 and is served from the RTTM cache.
+
+### §7.4 trip on single linkage (2026-10-03)
+- AGG-1d-07/08/09 (single, 0.6/0.8/1.0) produced byte-identical per-file CSVs -> §7.4 hard-fail. Investigated: distinct `clustering_config` and distinct final keys for all three; every meeting outputs exactly 2 speakers; the CSV hash equals AGG-1a-11's (centroid 1.10), the verified single-cluster collapse. Single linkage chains everything into one cluster from 0.6 up. Genuine result, not a stuck setting.
+- Driver now exempts ONLY an exact match to the AGG-1a-11 collapse signature from §7.4, and labels such points "single-cluster collapse". Backfilled the label on 6 earlier collapse points (1a-12, 1b-11, 1b-12, 1d-05, 1d-07, 1d-08).
+- Gotcha: retrying with `--force` after the trip was served from the final-RTTM cache AND overwrote the first attempt's clean-tally record, so the repeat exemption had no evidence. Recomputed 1d-09 in the scratch cache dir (copied intermediates, no RTTMs): 16 full hits. Lesson: retry a hard-failed point in a fresh RTTM cache dir, not with a bare `--force`. Extra manifests from the retries remain in `runs/`.
+- 1c result: centroid/0.75 with min_cluster_size 20 (AGG-1c-05): all 16.68, report 17.19, MAE 0.062, 15/16; ties 1c-04 on tune DER (16.10) and wins on tune MAE. min_cluster_size 1/3/6 over-count massively (MAE 43.6/15.9/9.3): small clusters are what keep the count down.
 
 ## Results
 
