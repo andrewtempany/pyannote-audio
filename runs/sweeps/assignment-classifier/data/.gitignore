@@ -1,0 +1,2 @@
+# train datasets are rebuilt by: python -m harness.assignment_dataset build --split train --method <m>
+train_*.csv.gz
