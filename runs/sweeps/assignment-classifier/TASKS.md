@@ -24,21 +24,21 @@ Re-read this file and the ticket's "Blocked on Andrew" + "Implementation Notes" 
 - [x] status: in-progress
 
 ## WS0 Setup and checks
-- [ ] A4: centroids/soft_clusters non-None and aligned (VBx, HDBSCAN) — test on one cached meeting
-- [ ] Identity on test reproduces VBx 0.17048543579940637 (cold-equivalent) and HDBSCAN leaf/40 16.86%
-- [ ] Commit WS0
+- [x] A4: centroids/soft_clusters non-None and aligned (VBx, HDBSCAN) — test on one cached meeting
+- [x] Identity on test reproduces VBx 0.17048543579940637 (cold-equivalent) and HDBSCAN leaf/40 16.86%
+- [x] Commit WS0
 
 ## WS1 Data
-- [ ] `download_ami_split.sh <split> <dest>` (generalised test script)
-- [ ] Download dev, train Mix-Headset
-- [ ] A2: check every WAV header; repair; list repaired files
-- [ ] convert_for_harness.sh train / dev; RTTM/UEM counts match audio
+- [x] `download_ami_split.sh <split> <dest>` (generalised test script)
+- [x] Download dev, train Mix-Headset
+- [x] A2: check every WAV header; repair; list repaired files
+- [x] convert_for_harness.sh train / dev; RTTM/UEM counts match audio
 - [ ] Cold VBx identity on dev, then train (GPU); record DER
 - [ ] HDBSCAN leaf/40 identity on dev, train (CPU, cache hits only); A6 tally
 - [ ] Commit WS1
 
 ## WS2 Pair dataset
-- [ ] Predictions recorded in ticket before WS2 (already in §6; confirm unchanged)
+- [x] Predictions recorded in ticket before WS2 (already in §6; confirm unchanged)
 - [ ] `harness/assignment_dataset.py` + tests (incl. hard-fail 4 loader-patch test)
 - [ ] parquet per split × method
 - [ ] dataset_stats.md: target counts, labelled share, floor pair accuracy by overlap bin
@@ -46,10 +46,10 @@ Re-read this file and the ticket's "Blocked on Andrew" + "Implementation Notes" 
 - [ ] Commit WS2
 
 ## WS3 Non-learned
-- [ ] `nc_target`, `constrained_target`, `knn_target` (k by dev pair acc) + tests
-- [ ] Test runs VBx + HDBSCAN; RUN_INDEX rows
-- [ ] Check-in note to Andrew (WS2 floors + WS3 table)
-- [ ] Commit WS3
+- [x] `nc_target`, `constrained_target`, `knn_target` (k by dev pair acc) + tests
+- [x] Test runs VBx + HDBSCAN; RUN_INDEX rows
+- [x] Check-in note to Andrew (WS2 floors + WS3 table)
+- [x] Commit WS3
 
 ## WS4 Learned
 - [ ] Grid on dev pair acc → dev_selection.csv
