@@ -102,6 +102,9 @@ Obsidian-Diarisation/.obsidian/
 
 # harness run cache (regenerable, large)
 .harness_cache/
+# condition-isolated cache dirs (closeout-2 SDM: .harness_cache_sdm, and any
+# future .harness_cache_<condition>) -- same regenerable intermediates/RTTMs.
+.harness_cache*/
 
 # harness run outputs: manifests and per-file scores are results, not scratch.
 # runs/* not runs/ -- a negation cannot re-include from an excluded directory.
