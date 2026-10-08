@@ -1,0 +1,44 @@
+{
+  "run_id": "20261008T173352Z-a76b4c1c",
+  "created_at": "2026-10-08T17:33:52.069101+00:00",
+  "run_config": {
+    "pipeline_config_id": "241ecd865d157bd823106180f9691005b3f6245043a8fadb1c62480b9aedbced",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "extra_pipeline_steps": [],
+    "split": "dev",
+    "condition": "baseline",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "closeout-3 s4 confirmation: VBx (community-1 default) + nc_target, AMI IHM DEV (18 meetings), warm shared cache; compare to dev VBx identity baseline",
+    "refinement_strategy": "nc_target",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "f0a03b25",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    },
+    "min_duration_off": 0.0
+  },
+  "summary": {
+    "der": 0.16835521923382937,
+    "der_overlap_system": 0.3094328499511375,
+    "der_overlap_assigned": 0.22005844542663797,
+    "jer": 0.21638769421670284,
+    "counting_mae": 0.16666666666666666,
+    "counting_exact_match_percent": 83.33333333333333,
+    "region_t_and_d": 2716.414968750067,
+    "region_t_minus_d": 1143.120031249935,
+    "region_d_minus_t": 553.2006562499292,
+    "missed_detection": 2146.2361874998874,
+    "false_alarm": 1565.943999999882,
+    "confusion": 1600.8840937500165
+  },
+  "duration_seconds": 38.28199999999197
+}
