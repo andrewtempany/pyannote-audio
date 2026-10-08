@@ -20,7 +20,11 @@ from typing import Any, Dict, Optional, Sequence, Union
 import torch
 from pyannote.metrics.diarization import DiarizationErrorRate, JaccardErrorRate
 
-from harness.cache_id import clustering_config_description, intermediate_config_id
+from harness.cache_id import (
+    clustering_config_description,
+    intermediate_config_id,
+    min_duration_off_of,
+)
 from harness.cache_id import pipeline_config_id as build_pipeline_config_id
 from harness.config import HarnessConfig
 from harness.datasets import AMIDatasetAdapter
@@ -110,6 +114,7 @@ def run_harness(
     oracle_rttm: Optional[str] = None,
     intermediate_config_id_value: Optional[str] = None,
     clustering_config: Optional[str] = None,
+    min_duration_off: Optional[float] = None,
     use_intermediate_cache: bool = True,
     clustering_diagnostics_dir: Optional[Union[str, Path]] = None,
 ) -> Dict[str, float]:
@@ -294,6 +299,9 @@ def run_harness(
             # alongside the hash so a future reader can tell why two runs
             # that look identically configured landed on different entries.
             "inference_batch_sizes": inference_batch_sizes,
+            # Instantiated segmentation.min_duration_off (post-clustering
+            # gap-filling, seconds). Read off the live pipeline in main().
+            "min_duration_off": min_duration_off,
         }
         write_manifest(run_config, summary, runs_dir, duration_seconds=duration_seconds)
 
@@ -369,6 +377,24 @@ def _parse_clustering_params(raw: Optional[Sequence[str]]) -> Dict[str, Any]:
                 f"got {item!r}"
             )
         params[name] = _coerce_param_value(value)
+    return params
+
+
+def _parse_segmentation_params(raw: Optional[Sequence[str]]) -> Dict[str, Any]:
+    """Repeatable `--segmentation-param name=value` -> a dict.
+
+    Same contract as `_parse_clustering_params` (shape only; whether the name
+    exists is left to `pipeline.instantiate`, which raises on an unknown name).
+    """
+    params: Dict[str, Any] = {}
+    for item in raw or []:
+        name, sep, value = item.partition("=")
+        if not sep or not name.strip():
+            raise ValueError(
+                f"--segmentation-param expects name=value with a non-empty "
+                f"name, got {item!r}"
+            )
+        params[name.strip()] = _coerce_param_value(value)
     return params
 
 
@@ -463,6 +489,7 @@ def build_pipeline(
     clustering_model: str = DEFAULT_CLUSTERING_MODEL,
     clustering_params: Optional[Dict[str, Any]] = None,
     device: Optional[str] = None,
+    segmentation_params: Optional[Dict[str, Any]] = None,
 ):
     """Load the pipeline with a chosen clustering class and hyperparameters.
 
@@ -540,6 +567,12 @@ def build_pipeline(
         # Raises ValueError on an unknown parameter name (base
         # pyannote/pipeline/pipeline.py:443-444).
         pipeline.instantiate({"clustering": dict(clustering_params)})
+
+    if segmentation_params:
+        # Same route as clustering: the pipeline's own instantiate(), so an
+        # unknown name raises ValueError instead of being ignored. Today only
+        # `min_duration_off` is declared (powerset checkpoints).
+        pipeline.instantiate({"segmentation": dict(segmentation_params)})
 
     # `is True`, not truthiness. `getattr` on a MagicMock returns a truthy Mock
     # for any attribute name, so a truthiness check would refuse every
@@ -658,6 +691,16 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         "being ignored -- a silently dropped hyperparameter would produce a flat "
         "sweep curve that reads as a real negative result.",
     )
+    parser.add_argument(
+        "--segmentation-param", action="append", default=None,
+        metavar="NAME=VALUE",
+        help="Override one segmentation hyperparameter, e.g. "
+        "--segmentation-param min_duration_off=0.5. Repeatable. Applied via the "
+        "pipeline's own instantiate(), so an unknown name fails loudly. "
+        "min_duration_off acts after clustering: it is part of the FINAL cache "
+        "key (only when it differs from the shipped 0.0) and not of the "
+        "intermediate key. The instantiated value is recorded in the manifest.",
+    )
     parser.add_argument("--corpus", default="AMI")
     parser.add_argument(
         "--no-intermediate-cache", action="store_true",
@@ -697,11 +740,13 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
     # run rather than the one the flags asked for. Parsing first means a
     # malformed --clustering-param dies before the models load.
     clustering_params = _parse_clustering_params(args.clustering_param)
+    segmentation_params = _parse_segmentation_params(args.segmentation_param)
     pipeline = build_pipeline(
         checkpoint,
         token=config.hf_token,
         clustering_model=args.clustering_model,
         clustering_params=clustering_params,
+        segmentation_params=segmentation_params,
     )
     pipeline = pipeline.to(_resolve_device(args.device))
 
@@ -770,6 +815,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, float]:
         oracle_rttm=args.oracle_rttm,
         intermediate_config_id_value=intermediate_id,
         clustering_config=clustering_config,
+        min_duration_off=min_duration_off_of(pipeline),
         use_intermediate_cache=not args.no_intermediate_cache,
         clustering_diagnostics_dir=args.clustering_diagnostics_dir,
     )

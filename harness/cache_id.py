@@ -274,6 +274,49 @@ def _intermediate_components(checkpoint: str, pipeline: Any) -> List[str]:
     return [f"checkpoint={checkpoint}"] + _batch_size_components(pipeline)
 
 
+# The value community-1 ships for `segmentation.min_duration_off`
+# (config.yaml `params.segmentation.min_duration_off: 0.0`; also the default in
+# speaker_diarization.py:307). HARD-CODED rather than read from the checkpoint,
+# deliberately: this constant's job is to define which runs keep the key they
+# had BEFORE the component existed. Every final RTTM already in `.harness_cache`
+# was produced at 0.0 under a key that omits the component, so "shipped" for
+# key purposes means "0.0, the value those keys implicitly encode" -- not
+# "whatever the checkpoint says today". If the checkpoint ever shipped another
+# value, reading it dynamically would silently change what an unadorned key
+# means; with the constant, such a run simply gets an explicit component. The
+# checkpoint string is already in the key, so a different checkpoint cannot
+# collide with these entries. Compared with `==` on floats that are either
+# literally 0.0 or user-supplied, so no tolerance is needed.
+SHIPPED_MIN_DURATION_OFF = 0.0
+
+
+def min_duration_off_of(pipeline: Any):
+    """The instantiated `segmentation.min_duration_off`, or None when the
+    pipeline has no such attribute (test stand-ins). Raises (float() on an
+    un-instantiated descriptor) rather than guessing."""
+    segmentation = getattr(pipeline, "segmentation", None)
+    value = getattr(segmentation, "min_duration_off", None)
+    if value is None:
+        return None
+    return float(value)
+
+
+def _final_only_components(pipeline: Any) -> List[str]:
+    """Things that change the final RTTM but NOT segmentation/embeddings.
+
+    `segmentation.min_duration_off` is applied only in `to_annotation`
+    (speaker_diarization.py:718-736), after clustering. It is included ONLY
+    when it differs from the shipped value, so every key recorded before this
+    component existed -- and any run at the shipped value, whether or not the
+    flag was passed -- is unchanged. Two different overrides get two different
+    keys.
+    """
+    value = min_duration_off_of(pipeline)
+    if value is None or value == SHIPPED_MIN_DURATION_OFF:
+        return []
+    return [f"min_duration_off={_canonical(value)}"]
+
+
 def intermediate_config_id(checkpoint: str, pipeline: Any) -> str:
     """Pipeline-configuration portion of the INTERMEDIATE cache key.
 
@@ -304,6 +347,7 @@ def pipeline_config_id(checkpoint: str, pipeline: Any) -> str:
         [_FINAL_PREFIX]
         + _intermediate_components(checkpoint, pipeline)
         + _clustering_components(pipeline)
+        + _final_only_components(pipeline)
     )
     raw = "|".join(components)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
