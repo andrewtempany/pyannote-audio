@@ -1,0 +1,72 @@
+{
+  "selected_value": 0.75,
+  "selected_point": "VBX-MDO0.75",
+  "selected_tune_der": 0.15998783190065555,
+  "tune_der_by_value": {
+    "0.0": 0.162587360848238,
+    "0.5": 0.1610718689327101,
+    "0.05": 0.1625522630933987,
+    "0.1": 0.16260204196086744,
+    "0.2": 0.16254795596081853,
+    "0.3": 0.16228915938744076,
+    "0.75": 0.15998783190065555,
+    "1.0": 0.16095854066080253
+  },
+  "fresh_baseline_der": {
+    "all": 0.17048543579940634,
+    "tune": 0.16257965496457943,
+    "report": 0.17732127942040085
+  },
+  "selection_is_shipped": false,
+  "bootstrap_function": "reimplementation of harness/clustering_benchmark_report.py:57 paired_bootstrap_delta (reads a fixed table, so not callable on these CSVs); _der imported from :50; validated equal on HDB-2b-04",
+  "checks": {
+    "unique_final_keys": true,
+    "single_intermediate_key": true,
+    "manifest_equals_requested": true,
+    "md_not_constant": true
+  },
+  "delta_report_vs_fresh": {
+    "delta": -0.0006822365337588732,
+    "low": -0.0031579831116319763,
+    "high": 0.0015337819800677346
+  },
+  "delta_report_vs_cached0": {
+    "delta": -0.000690468525754051,
+    "low": -0.003165398562536123,
+    "high": 0.0015246426965987991
+  },
+  "hdbscan": {
+    "0.0": {
+      "run_id": "20261008T093915Z-805bafef",
+      "final_key": "ce6cd02fec7d73b66770237191a42e9735857287c18372d2b4d100612790432c",
+      "tally": "intermediate cache: 0 full hit(s), 0 partial, 0 miss(es), 0 write(s) (186 entries, 682.0 MB on disk)",
+      "der": 0.1685575266123577,
+      "report_der": 0.17178814192462458,
+      "md_s": 2925.11099999995,
+      "fa_s": 1099.3760619999834,
+      "conf_s": 1152.5759999999746
+    },
+    "0.75": {
+      "run_id": "20261008T094003Z-60a94eaa",
+      "final_key": "46fc32d491db04f83eb1f45a25171087748d4dd84acd05c57fa91579f8a081a4",
+      "tally": "intermediate cache: 16 full hit(s), 0 partial, 0 miss(es), 0 write(s) (186 entries, 682.0 MB on disk)",
+      "der": 0.166412100038075,
+      "report_der": 0.1700398747598823,
+      "md_s": 2593.8751562499156,
+      "fa_s": 1381.8969369999045,
+      "conf_s": 1135.3965000000144,
+      "delta_all_vs_hdb0": -0.0021454265742827106,
+      "delta_report_vs_hdb0": {
+        "delta": -0.0017482671647422454,
+        "low": -0.004345049146230831,
+        "high": 0.0005117279673622168
+      },
+      "delta_all_vs_b15caf86": -0.002138882311162854,
+      "delta_report_vs_b15caf86": {
+        "delta": -0.001742137280864725,
+        "low": -0.004338698288873311,
+        "high": 0.0005175328673690785
+      }
+    }
+  }
+}
