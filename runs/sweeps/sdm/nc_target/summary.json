@@ -1,0 +1,14 @@
+{
+  "der": 0.19719772189479476,
+  "der_overlap_system": 0.3641280787093647,
+  "der_overlap_assigned": 0.2372895714824007,
+  "jer": 0.26782589122645467,
+  "counting_mae": 0.375,
+  "counting_exact_match_percent": 75.0,
+  "region_t_and_d": 2245.8343750000417,
+  "region_t_minus_d": 1581.2216249999615,
+  "region_d_minus_t": 397.3306249999555,
+  "missed_detection": 3428.960343749927,
+  "false_alarm": 1170.9179369999247,
+  "confusion": 1456.8375625000103
+}
