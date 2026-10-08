@@ -1,0 +1,44 @@
+{
+  "run_id": "20261008T072109Z-351e6f23",
+  "created_at": "2026-10-08T07:21:09.304150+00:00",
+  "run_config": {
+    "pipeline_config_id": "22321cdb7db30123db250044adfcc8050f0a91a6f14c5fbdfa35fb7aca83f664",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "VBxClustering(Fa=0.07, Fb=6.748, threshold=0.8)",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "baseline",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "closeout-3 s2 VBx sweep VBX-Fa0.07-Fb6.748-T0.8: shipped pipeline with VBx clustering overridden to Fa=0.07, Fb=6.748, threshold=0.8; identity refinement, IHM test, warm shared cache",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "af86b9ee",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "VBxClustering(Fa=0.07, Fb=6.748, threshold=0.8)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    },
+    "min_duration_off": 0.0
+  },
+  "summary": {
+    "der": 0.18299327772315405,
+    "der_overlap_system": 0.34254913685241634,
+    "der_overlap_assigned": 0.22952819217174464,
+    "jer": 0.2736125362942828,
+    "counting_mae": 0.3125,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2433.11687500005,
+    "region_t_minus_d": 1393.9391249999528,
+    "region_d_minus_t": 382.94937499995154,
+    "missed_detection": 2925.049468749914,
+    "false_alarm": 1099.0743744999131,
+    "confusion": 1596.3177812500198
+  },
+  "duration_seconds": 31.218999999997322
+}
