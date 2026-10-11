@@ -1,0 +1,310 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Harness Run Launcher</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; }
+  fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
+  label { display: block; margin: 0.6rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; }
+  input[type=text], select { width: 100%; padding: 0.4rem; box-sizing: border-box; font-size: 0.95rem; }
+  input[type=checkbox] { margin-right: 0.4rem; }
+  button { padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
+  #runs { margin-top: 1rem; }
+  .run { border: 1px solid #ddd; border-radius: 8px; padding: 0.8rem 1rem; margin-bottom: 0.8rem; }
+  .run.done { border-color: #4caf50; }
+  .run.failed { border-color: #e53935; }
+  .barwrap { background: #eee; border-radius: 4px; overflow: hidden; height: 16px; margin: 0.4rem 0; }
+  .bar { background: #4c8bf5; height: 100%; transition: width 0.4s; }
+  .run.done .bar { background: #4caf50; }
+  .run.failed .bar { background: #e53935; }
+  .meta { font-size: 0.85rem; color: #555; }
+  .log { white-space: pre-wrap; font-family: monospace; font-size: 0.75rem; background: #f7f7f7; padding: 0.5rem; max-height: 160px; overflow-y: auto; display: none; margin-top: 0.5rem; }
+  .toggle-log { font-size: 0.8rem; cursor: pointer; color: #4c8bf5; background: none; border: none; padding: 0; margin-top: 0.4rem; }
+  #err { color: #e53935; font-size: 0.9rem; }
+  .kill-btn { background: #fdecea; border: 1px solid #e53935; color: #e53935; border-radius: 4px; padding: 0.2rem 0.6rem; font-size: 0.8rem; cursor: pointer; margin-left: 0.5rem; }
+  .gpu-panel { border: 1px solid #ddd; border-radius: 8px; padding: 0.8rem 1rem; margin-bottom: 1.5rem; }
+  .gpu-row { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 0.3rem 0; }
+  .gpu-refresh { font-size: 0.85rem; cursor: pointer; }
+  .gpu-bad { color: #e53935; font-size: 0.85rem; }
+  .cmp-panel { border: 1px solid #ddd; border-radius: 8px; padding: 0.8rem 1rem; margin-top: 1.5rem; }
+  .cmp-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+  .cmp-filter { font-size: 0.85rem; display: flex; align-items: center; gap: 0.3rem; }
+  .cmp-table-wrap { overflow-x: auto; margin-top: 0.6rem; }
+  table.cmp { border-collapse: collapse; font-size: 0.8rem; white-space: nowrap; }
+  table.cmp th, table.cmp td { border: 1px solid #ddd; padding: 0.3rem 0.5rem; text-align: left; }
+  table.cmp th { background: #f7f7f7; position: sticky; top: 0; }
+  table.cmp tbody tr:nth-child(even) { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Harness Run Launcher</h1>
+
+<div class="gpu-panel">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <strong>GPU status</strong>
+    <button class="gpu-refresh" onclick="checkGpu()">Check GPU</button>
+  </div>
+  <div id="gpu-info" class="meta">Not checked yet.</div>
+</div>
+
+<fieldset>
+  <legend>New run</legend>
+
+  <label>Run condition</label>
+  <select id="run_condition">
+    <option value="baseline">baseline</option>
+    <option value="nearest_centroid">nearest_centroid</option>
+    <option value="oracle_assignment">oracle_assignment</option>
+    <option value="oracle_segmentation">oracle_segmentation</option>
+  </select>
+
+  <label>Refinement strategy</label>
+  <select id="refinement_strategy">
+    <option value="identity">identity</option>
+    <option value="nearest_centroid">nearest_centroid</option>
+    <option value="oracle">oracle</option>
+  </select>
+
+  <label id="scope_label" style="display:none">Oracle scope</label>
+  <select id="oracle_scope" style="display:none">
+    <option value="all_pairs">all_pairs</option>
+    <option value="overlap_degraded">overlap_degraded</option>
+  </select>
+
+  <label id="oracle_rttm_label" style="display:none">Oracle segmentation RTTM path (required for oracle_segmentation)</label>
+  <input type="text" id="oracle_rttm" style="display:none"
+         placeholder="e.g. ~/Code/AMI-diarization-setup/benchmark_output/AMI.SpeakerDiarization.only_words.test.rttm">
+
+  <label>Data root</label>
+  <input type="text" id="data_root" placeholder="defaults to ~/Code/AMI-diarization-setup/harness-data">
+
+  <label>AMI mic condition</label>
+  <select id="condition">
+    <option value="IHM">IHM</option>
+    <option value="SDM">SDM</option>
+  </select>
+
+  <label>Split</label>
+  <select id="split">
+    <option value="test">test</option>
+    <option value="dev">dev</option>
+  </select>
+
+  <label><input type="checkbox" id="counts_toward_results"> Counts toward results (T5 table)</label>
+
+  <label>Notes (required — what is this run?)</label>
+  <input type="text" id="notes" placeholder="e.g. oracle ceiling, all_pairs scope, full AMI IHM test split">
+
+  <button id="launch">Run</button>
+  <div id="err"></div>
+</fieldset>
+
+<div id="runs"></div>
+
+<div class="cmp-panel">
+  <div class="cmp-header">
+    <strong>Comparison table (runs/comparison.csv)</strong>
+    <div style="display:flex; align-items:center; gap:0.8rem;">
+      <label class="cmp-filter">
+        <input type="checkbox" id="cmp_filter_counts" checked>
+        Only counts_toward_results
+      </label>
+      <button class="gpu-refresh" onclick="loadComparison()">Refresh</button>
+    </div>
+  </div>
+  <div class="cmp-table-wrap" id="cmp-table-wrap">Not loaded yet.</div>
+</div>
+
+<script>
+const refinementSel = document.getElementById('refinement_strategy');
+const scopeLabel = document.getElementById('scope_label');
+const scopeSel = document.getElementById('oracle_scope');
+const runConditionSel = document.getElementById('run_condition');
+const rttmLabel = document.getElementById('oracle_rttm_label');
+const rttmInput = document.getElementById('oracle_rttm');
+
+refinementSel.addEventListener('change', () => {
+  const isOracle = refinementSel.value === 'oracle';
+  scopeLabel.style.display = isOracle ? 'block' : 'none';
+  scopeSel.style.display = isOracle ? 'block' : 'none';
+});
+
+runConditionSel.addEventListener('change', () => {
+  const needsRttm = runConditionSel.value === 'oracle_segmentation';
+  rttmLabel.style.display = needsRttm ? 'block' : 'none';
+  rttmInput.style.display = needsRttm ? 'block' : 'none';
+});
+
+const knownRuns = new Set();
+
+async function launch() {
+  const err = document.getElementById('err');
+  err.textContent = '';
+  const payload = {
+    run_condition: runConditionSel.value,
+    refinement_strategy: refinementSel.value,
+    oracle_scope: scopeSel.value,
+    oracle_rttm: rttmInput.value || null,
+    data_root: document.getElementById('data_root').value || null,
+    condition: document.getElementById('condition').value,
+    split: document.getElementById('split').value,
+    counts_toward_results: document.getElementById('counts_toward_results').checked,
+    notes: document.getElementById('notes').value,
+  };
+  if (runConditionSel.value === 'oracle_segmentation' && !payload.oracle_rttm) {
+    err.textContent = 'oracle_segmentation requires the RTTM path field above';
+    return;
+  }
+  const res = await fetch('/api/launch', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    err.textContent = data.error || 'Failed to launch run';
+    return;
+  }
+  knownRuns.add(data.run_id);
+  renderRuns();
+}
+
+document.getElementById('launch').addEventListener('click', launch);
+
+async function checkGpu() {
+  const el = document.getElementById('gpu-info');
+  el.textContent = 'Checking…';
+  const res = await fetch('/api/gpu');
+  const data = await res.json();
+  if (data.error) {
+    el.innerHTML = `<span class="gpu-bad">${data.error}</span>`;
+    return;
+  }
+  el.innerHTML = data.gpus.map(g => `
+    <div class="gpu-row"><span>${g.name}</span>
+    <span>${g.utilization_pct}% util · ${g.memory_used_mib.toFixed(0)}/${g.memory_total_mib.toFixed(0)} MiB · ${g.temperature_c}°C</span></div>
+  `).join('');
+}
+
+async function killRun(runId) {
+  if (!confirm('Kill this run? Progress made so far is kept (cached files stay), but the run will stop.')) return;
+  const res = await fetch('/api/kill', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({run_id: runId}),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert(data.error || 'Failed to kill run');
+  }
+  renderRuns();
+}
+
+function fmtElapsed(run) {
+  if (!run.started_at) return '';
+  const end = run.finished_at || (Date.now() / 1000);
+  const secs = Math.round(end - run.started_at);
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return `${m}m ${s}s`;
+}
+
+async function fetchRun(runId) {
+  const res = await fetch('/api/progress?run_id=' + runId);
+  return res.json();
+}
+
+async function toggleLog(runId, el) {
+  const logEl = document.getElementById('log-' + runId);
+  if (logEl.style.display === 'block') {
+    logEl.style.display = 'none';
+    el.textContent = 'Show log';
+    return;
+  }
+  const res = await fetch('/api/log?run_id=' + runId);
+  const data = await res.json();
+  logEl.textContent = data.log || '(no log yet)';
+  logEl.style.display = 'block';
+  el.textContent = 'Hide log';
+}
+
+async function renderRuns() {
+  const container = document.getElementById('runs');
+  const runs = await Promise.all([...knownRuns].map(fetchRun));
+  runs.sort((a, b) => (b.started_at || 0) - (a.started_at || 0));
+
+  container.innerHTML = runs.map(run => {
+    const total = run.total || 0;
+    const done = run.done || 0;
+    const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    const statusLabel = run.status === 'running'
+      ? `Running — ${done} of ${total || '?'} files`
+      : run.status === 'done' ? 'Done'
+      : run.status === 'failed' ? `Failed (exit code ${run.returncode})`
+      : run.status === 'killing' ? 'Killing…'
+      : run.status === 'killed' ? 'Killed'
+      : 'Starting…';
+
+    const canKill = run.status === 'starting' || run.status === 'running';
+    const killBtn = canKill
+      ? `<button class="kill-btn" onclick="killRun('${run.run_id}')">Kill</button>`
+      : '';
+
+    return `
+      <div class="run ${run.status}">
+        <strong>${run.run_condition}</strong> — ${run.notes || ''}
+        <div class="barwrap"><div class="bar" style="width:${pct}%"></div></div>
+        <div class="meta">${statusLabel} · ${fmtElapsed(run)} ${killBtn}</div>
+        <button class="toggle-log" onclick="toggleLog('${run.run_id}', this)">Show log</button>
+        <div class="log" id="log-${run.run_id}"></div>
+      </div>`;
+  }).join('');
+}
+
+setInterval(renderRuns, 2000);
+
+function truthy(v) {
+  return v === 'True' || v === 'true' || v === '1';
+}
+
+async function loadComparison() {
+  const wrap = document.getElementById('cmp-table-wrap');
+  wrap.textContent = 'Loading…';
+  const res = await fetch('/api/comparison');
+  const data = await res.json();
+
+  if (!data.columns || data.columns.length === 0) {
+    wrap.textContent = 'No runs recorded yet.';
+    return;
+  }
+
+  const onlyCounted = document.getElementById('cmp_filter_counts').checked;
+  const rows = onlyCounted
+    ? data.rows.filter(r => truthy(r.counts_toward_results))
+    : data.rows;
+
+  if (rows.length === 0) {
+    wrap.textContent = onlyCounted
+      ? 'No runs with counts_toward_results=True yet.'
+      : 'No runs recorded yet.';
+    return;
+  }
+
+  const cols = data.columns;
+  const thead = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+  const tbody = rows.map(r =>
+    '<tr>' + cols.map(c => `<td>${r[c] ?? ''}</td>`).join('') + '</tr>'
+  ).join('');
+
+  wrap.innerHTML = `<table class="cmp"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+}
+
+document.getElementById('cmp_filter_counts').addEventListener('change', loadComparison);
+loadComparison();
+setInterval(loadComparison, 10000);
+</script>
+
+</body>
+</html>

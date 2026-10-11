@@ -1,0 +1,44 @@
+{
+  "run_id": "20261008T094113Z-88118b5e",
+  "created_at": "2026-10-08T09:41:13.641552+00:00",
+  "run_config": {
+    "pipeline_config_id": "c0e293becc9fac82a2886d1cbdf74009d992d7f586e24508dfa8585c88e97943",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "baseline",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "closeout-4 bound check: min_duration_off=1.5 (expected rejection)",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "a1a46c0a",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    },
+    "min_duration_off": 1.5
+  },
+  "summary": {
+    "der": 0.1801241769286744,
+    "der_overlap_system": 0.30036196268362186,
+    "der_overlap_assigned": 0.2154536430811602,
+    "jer": 0.22548029326053112,
+    "counting_mae": 0.25,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2766.436156250044,
+    "region_t_minus_d": 1060.619843749959,
+    "region_d_minus_t": 870.1094687499481,
+    "missed_detection": 2111.3346562499205,
+    "false_alarm": 2236.5820619999167,
+    "confusion": 1184.403562500022
+  },
+  "duration_seconds": 30.75
+}

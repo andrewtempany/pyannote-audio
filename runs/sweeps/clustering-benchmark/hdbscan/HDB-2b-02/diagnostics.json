@@ -1,0 +1,178 @@
+{
+ "EN2002a": {
+  "num_train": 2602,
+  "num_outliers": 1592,
+  "num_clusters_found": 63,
+  "num_clusters": 63,
+  "num_active": 4786,
+  "num_dropped_by_filter": 2184,
+  "mean_overlap_fraction_dropped": 0.663543164730072,
+  "mean_overlap_fraction_outliers": 0.26779109239578247,
+  "mean_overlap_fraction_inliers": 0.14437849819660187
+ },
+ "EN2002b": {
+  "num_train": 2017,
+  "num_outliers": 1244,
+  "num_clusters_found": 50,
+  "num_clusters": 50,
+  "num_active": 3683,
+  "num_dropped_by_filter": 1666,
+  "mean_overlap_fraction_dropped": 0.6847303509712219,
+  "mean_overlap_fraction_outliers": 0.2524995505809784,
+  "mean_overlap_fraction_inliers": 0.16465985774993896
+ },
+ "EN2002c": {
+  "num_train": 3537,
+  "num_outliers": 2220,
+  "num_clusters_found": 81,
+  "num_clusters": 81,
+  "num_active": 5991,
+  "num_dropped_by_filter": 2454,
+  "mean_overlap_fraction_dropped": 0.6605818271636963,
+  "mean_overlap_fraction_outliers": 0.23044678568840027,
+  "mean_overlap_fraction_inliers": 0.10536359250545502
+ },
+ "EN2002d": {
+  "num_train": 2605,
+  "num_outliers": 1718,
+  "num_clusters_found": 52,
+  "num_clusters": 52,
+  "num_active": 4866,
+  "num_dropped_by_filter": 2261,
+  "mean_overlap_fraction_dropped": 0.6953072547912598,
+  "mean_overlap_fraction_outliers": 0.2934786379337311,
+  "mean_overlap_fraction_inliers": 0.12882724404335022
+ },
+ "ES2004a": {
+  "num_train": 1107,
+  "num_outliers": 546,
+  "num_clusters_found": 34,
+  "num_clusters": 34,
+  "num_active": 1823,
+  "num_dropped_by_filter": 716,
+  "mean_overlap_fraction_dropped": 0.6078575849533081,
+  "mean_overlap_fraction_outliers": 0.1473865956068039,
+  "mean_overlap_fraction_inliers": 0.08224788308143616
+ },
+ "ES2004b": {
+  "num_train": 2593,
+  "num_outliers": 1289,
+  "num_clusters_found": 67,
+  "num_clusters": 67,
+  "num_active": 3889,
+  "num_dropped_by_filter": 1296,
+  "mean_overlap_fraction_dropped": 0.6911281943321228,
+  "mean_overlap_fraction_outliers": 0.14074921607971191,
+  "mean_overlap_fraction_inliers": 0.04628465324640274
+ },
+ "ES2004c": {
+  "num_train": 2657,
+  "num_outliers": 1369,
+  "num_clusters_found": 70,
+  "num_clusters": 70,
+  "num_active": 4103,
+  "num_dropped_by_filter": 1446,
+  "mean_overlap_fraction_dropped": 0.7058188915252686,
+  "mean_overlap_fraction_outliers": 0.152166947722435,
+  "mean_overlap_fraction_inliers": 0.06017453223466873
+ },
+ "ES2004d": {
+  "num_train": 2404,
+  "num_outliers": 1348,
+  "num_clusters_found": 55,
+  "num_clusters": 55,
+  "num_active": 4159,
+  "num_dropped_by_filter": 1755,
+  "mean_overlap_fraction_dropped": 0.6358000636100769,
+  "mean_overlap_fraction_outliers": 0.17848122119903564,
+  "mean_overlap_fraction_inliers": 0.08157315105199814
+ },
+ "IS1009a": {
+  "num_train": 850,
+  "num_outliers": 381,
+  "num_clusters_found": 25,
+  "num_clusters": 25,
+  "num_active": 1400,
+  "num_dropped_by_filter": 550,
+  "mean_overlap_fraction_dropped": 0.6282446384429932,
+  "mean_overlap_fraction_outliers": 0.17133434116840363,
+  "mean_overlap_fraction_inliers": 0.09067288041114807
+ },
+ "IS1009b": {
+  "num_train": 2121,
+  "num_outliers": 1010,
+  "num_clusters_found": 60,
+  "num_clusters": 60,
+  "num_active": 3240,
+  "num_dropped_by_filter": 1119,
+  "mean_overlap_fraction_dropped": 0.6637825965881348,
+  "mean_overlap_fraction_outliers": 0.1561550796031952,
+  "mean_overlap_fraction_inliers": 0.04321669787168503
+ },
+ "IS1009c": {
+  "num_train": 1862,
+  "num_outliers": 854,
+  "num_clusters_found": 53,
+  "num_clusters": 53,
+  "num_active": 2663,
+  "num_dropped_by_filter": 801,
+  "mean_overlap_fraction_dropped": 0.5636733174324036,
+  "mean_overlap_fraction_outliers": 0.09920437633991241,
+  "mean_overlap_fraction_inliers": 0.03140724077820778
+ },
+ "IS1009d": {
+  "num_train": 2153,
+  "num_outliers": 974,
+  "num_clusters_found": 56,
+  "num_clusters": 56,
+  "num_active": 3276,
+  "num_dropped_by_filter": 1123,
+  "mean_overlap_fraction_dropped": 0.5962605476379395,
+  "mean_overlap_fraction_outliers": 0.17431387305259705,
+  "mean_overlap_fraction_inliers": 0.05324604734778404
+ },
+ "TS3003a": {
+  "num_train": 1334,
+  "num_outliers": 775,
+  "num_clusters_found": 36,
+  "num_clusters": 36,
+  "num_active": 2073,
+  "num_dropped_by_filter": 739,
+  "mean_overlap_fraction_dropped": 0.31188565492630005,
+  "mean_overlap_fraction_outliers": 0.038228828459978104,
+  "mean_overlap_fraction_inliers": 0.017403867095708847
+ },
+ "TS3003b": {
+  "num_train": 2361,
+  "num_outliers": 1125,
+  "num_clusters_found": 68,
+  "num_clusters": 68,
+  "num_active": 3144,
+  "num_dropped_by_filter": 783,
+  "mean_overlap_fraction_dropped": 0.39329683780670166,
+  "mean_overlap_fraction_outliers": 0.0612778440117836,
+  "mean_overlap_fraction_inliers": 0.025222746655344963
+ },
+ "TS3003c": {
+  "num_train": 2403,
+  "num_outliers": 1289,
+  "num_clusters_found": 58,
+  "num_clusters": 58,
+  "num_active": 3329,
+  "num_dropped_by_filter": 926,
+  "mean_overlap_fraction_dropped": 0.4214833378791809,
+  "mean_overlap_fraction_outliers": 0.06459865719079971,
+  "mean_overlap_fraction_inliers": 0.02244756370782852
+ },
+ "TS3003d": {
+  "num_train": 2750,
+  "num_outliers": 1696,
+  "num_clusters_found": 62,
+  "num_clusters": 62,
+  "num_active": 4676,
+  "num_dropped_by_filter": 1926,
+  "mean_overlap_fraction_dropped": 0.4372200667858124,
+  "mean_overlap_fraction_outliers": 0.11138410121202469,
+  "mean_overlap_fraction_inliers": 0.05650172755122185
+ }
+}

@@ -1,0 +1,7 @@
+split,strategy,der,delta,lo,hi,n
+dev,vbx_identity,16.8960,0.0000,0.0000,0.0000,18
+dev,knn_target_k25,16.8247,-0.0713,-0.2054,0.0487,18
+dev,nc_target,16.8355,-0.0605,-0.1868,0.0609,18
+train,vbx_identity,15.6480,0.0000,0.0000,0.0000,136
+train,knn_target_k25,15.6688,0.0208,-0.0238,0.0683,136
+train,nc_target,15.6981,0.0502,0.0106,0.0921,136

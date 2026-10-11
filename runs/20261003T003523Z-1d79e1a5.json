@@ -1,0 +1,43 @@
+{
+  "run_id": "20261003T003523Z-1d79e1a5",
+  "created_at": "2026-10-03T00:35:23.488112+00:00",
+  "run_config": {
+    "pipeline_config_id": "247275755c8c2746268e4c05be53c23a6174a3ee7b029df8f7420bf19d2f1bc7",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "AgglomerativeClustering(method='centroid', min_cluster_size=12, threshold=0.7)",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "clustering_agglomerative",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "clustering-benchmark WS1 AGG-1a-06: method=centroid, min_cluster_size=12, threshold=0.70",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "09ed31d8",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "AgglomerativeClustering(method='centroid', min_cluster_size=12, threshold=0.7)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    }
+  },
+  "summary": {
+    "der": 0.17935940266049763,
+    "der_overlap_system": 0.35853685290299175,
+    "der_overlap_assigned": 0.24969621363185587,
+    "jer": 0.2389859047090366,
+    "counting_mae": 0.5,
+    "counting_exact_match_percent": 68.75,
+    "region_t_and_d": 2433.114000000012,
+    "region_t_minus_d": 1393.9419999999907,
+    "region_d_minus_t": 383.1130000000024,
+    "missed_detection": 2925.1129999999425,
+    "false_alarm": 1099.3880619999848,
+    "confusion": 1484.329999999965
+  },
+  "duration_seconds": 10.735000000000582
+}

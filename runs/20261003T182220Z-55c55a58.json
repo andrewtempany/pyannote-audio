@@ -1,0 +1,43 @@
+{
+  "run_id": "20261003T182220Z-55c55a58",
+  "created_at": "2026-10-03T18:22:20.002424+00:00",
+  "run_config": {
+    "pipeline_config_id": "241ecd865d157bd823106180f9691005b3f6245043a8fadb1c62480b9aedbced",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "extra_pipeline_steps": [],
+    "split": "train",
+    "condition": "baseline",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "assignment-classifier WS1: VBx (community-1 default) + identity, AMI IHM TRAIN split (136 meetings), cold GPU run populating intermediate cache; train baseline DER",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "f8e7f17a",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    }
+  },
+  "summary": {
+    "der": 0.15647973345529598,
+    "der_overlap_system": 0.30300579049009896,
+    "der_overlap_assigned": 0.19650858028719462,
+    "jer": 0.20887366302047275,
+    "counting_mae": 0.15441176470588236,
+    "counting_exact_match_percent": 84.55882352941177,
+    "region_t_and_d": 21499.439250000465,
+    "region_t_minus_d": 10329.240749999517,
+    "region_d_minus_t": 3984.8651249995564,
+    "missed_detection": 19353.00481249913,
+    "false_alarm": 11691.38171824918,
+    "confusion": 11634.277000000086
+  },
+  "duration_seconds": 45002.454
+}

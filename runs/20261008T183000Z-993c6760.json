@@ -1,0 +1,44 @@
+{
+  "run_id": "20261008T183000Z-993c6760",
+  "created_at": "2026-10-08T18:30:00.254336+00:00",
+  "run_config": {
+    "pipeline_config_id": "93516fbb184c3d6a669733d8d7c697e8214dbe6eee9ac9845153f8103db93b45",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "SpectralEigengapClustering(max_speakers=10, pruning=0.2)",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "clustering_spectral",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "closeout-2 SDM spectral: IHM-selected settings carried across, not re-tuned (SpectralEigengapClustering(max_speakers=10, pruning=0.2)); refinement identity; AMI SDM (Array1-01) test; cache .harness_cache_sdm",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "SDM",
+    "git_commit": "1a234d4c",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "SpectralEigengapClustering(max_speakers=10, pruning=0.2)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    },
+    "min_duration_off": 0.0
+  },
+  "summary": {
+    "der": 0.20603557830154998,
+    "der_overlap_system": 0.3689279038378284,
+    "der_overlap_assigned": 0.24493546418472126,
+    "jer": 0.30286035022632646,
+    "counting_mae": 0.3125,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2245.8343750000417,
+    "region_t_minus_d": 1581.2216249999615,
+    "region_d_minus_t": 397.3306249999555,
+    "missed_detection": 3428.960343749927,
+    "false_alarm": 1170.9179369999247,
+    "confusion": 1728.2828125000042
+  },
+  "duration_seconds": 39.35899999999674
+}

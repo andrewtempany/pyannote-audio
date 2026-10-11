@@ -1,0 +1,179 @@
+---
+status: done
+created: 2026-09-04
+---
+
+# Run Manifest
+
+Part of the [[Evaluation Harness]]. Depends on: [[Harness Reporter]], [[Orchestrator]].
+
+> **Extended by [[Oracle Ceiling Metrics]]**, which added `condition`/`refinement_strategy` controlled vocabularies, `corpus`/`mic_condition`/`git_commit` required fields, and `counts_toward_results` (optional, defaults to `False`). This page describes the original schema (`pipeline_config_id`, `segmentation_source_id`, `clustering_model`, `extra_pipeline_steps`, `split`, `condition` as a free string, `der_collar`, `der_skip_overlap`) as it existed before that extension — see [[Oracle Ceiling Metrics]] for the current required-fields list and controlled vocabularies.
+>
+> **Further extended by [[Cross-Condition Deltas]]**, which adds `build_cross_condition_table()` to `harness/aggregate_runs.py` — groups the CSV this page's `aggregate_runs()` produces by experimental condition and computes the batch's ceiling-analysis budget deltas, rather than requiring them to be read off the raw comparison table by hand.
+
+## What it does
+
+Every harness run can now write a self-contained JSON manifest recording the exact
+configuration that produced it — pipeline checkpoint, segmentation source, clustering
+model, dataset split/condition, and DER settings — alongside the existing per-file CSV
+and summary JSON from [[Harness Reporter]]. A separate aggregator scans a directory of
+manifests and builds an on-demand comparison table across runs, so comparing results as
+the segmentation source, clustering model, or pipeline steps are varied doesn't rely on
+memory or hand-maintained notes.
+
+This is deliberately flat-file based (JSON manifests + a generated CSV), not a database —
+that trade-off can be revisited if run volume or query needs outgrow it.
+
+## `harness/run_manifest.py`
+
+`write_manifest(run_config: dict, summary: dict, runs_dir: Union[str, Path]) -> Path`
+
+- `run_config` must contain: `pipeline_config_id`, `segmentation_source_id`,
+  `clustering_model`, `extra_pipeline_steps` (a list, empty by default — a new pipeline
+  stage is one more entry, not a schema change), `split`, `condition`, `der_collar`,
+  `der_skip_overlap`. Missing any required field raises `RunManifestError` immediately;
+  nothing is written.
+- `summary` is the dict [[Harness Reporter]]'s `write_report()` already returns
+  (der/overlap_der/jer/counting_mae/counting_exact_match_percent) — passed through as-is,
+  never recomputed.
+- `run_id` is a UTC timestamp plus an 8-hex-char sha256 hash of the full `run_config`
+  (e.g. `20260907T153012Z-a1b2c3d4`) — meaningful at a glance, and stable per exact config.
+- Writes `{runs_dir}/{run_id}.json` containing `{run_id, created_at, run_config, summary}`.
+  Creates `runs_dir` if missing (same `mkdir(parents=True, exist_ok=True)` convention as
+  the reporter).
+- Never overwrites an existing manifest silently: a `run_id` collision (same config,
+  same timestamp) raises `RunManifestError` rather than clobbering. This is deterministic
+  collision detection, not a race-avoidance mechanism — it's the intended signal that an
+  identical rerun happened, not a bug to route around.
+
+## `harness/aggregate_runs.py`
+
+`aggregate_runs(runs_dir: Union[str, Path], output_csv_path: Union[str, Path]) -> Path`
+
+Scans every `*.json` manifest under `runs_dir`, flattens each into one row (`run_id`,
+`created_at`, the `run_config` fields, the `summary` fields), and writes them as a CSV.
+This table is generated on demand, not hand-maintained, and can be pointed at this vault's
+`Docs/` folder as an output path when a human-readable snapshot is wanted. An empty
+`runs_dir` produces a zero-byte CSV rather than an error.
+
+## Orchestrator wiring
+
+`run_harness()` (in `run_harness.py`) takes two new optional parameters:
+
+- `clustering_model: Optional[str] = None`
+- `runs_dir: Optional[Union[str, Path]] = None`
+
+Both default to `None` so every pre-existing caller keeps working unchanged. When
+`runs_dir` is `None`, no manifest is written at all — this is a small addition beyond the
+ticket's original wording, needed to avoid a breaking signature change across existing
+callers, rather than making both parameters required.
+
+When `runs_dir` is provided, `run_harness()` assembles `run_config` itself from
+`pipeline_config_id`, `segmentation_source.id`, the `clustering_model` param, a hardcoded
+empty `extra_pipeline_steps: []`, and `config.{split,condition,der_collar,der_skip_overlap}`
+— callers never assemble `run_config` by hand. `write_manifest()` is called after
+`write_report()`, with the same "nothing partial on failure" property the reporter
+already has: a mid-run exception (e.g. `OracleSegmentation`'s `NotImplementedError`)
+leaves zero manifest files, same as it leaves zero report files.
+
+### `clustering_model`: what actually ran, not what was asked for
+
+`clustering_model` was once a hardcoded literal (`"pyannote-default"`), which recorded
+nothing. It now holds the **instantiated** clustering configuration in readable form:
+
+```json
+"clustering_model": "VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6)"
+```
+
+The value is derived from the **live pipeline object** via
+`harness/cache_id.clustering_config_description(pipeline)`, never from the
+`--clustering-model` flag string. That distinction is the point rather than a detail. A
+flag that is parsed, recorded and then never reaches the pipeline is this project's
+signature failure mode: the run completes, the manifest validates, and the numbers are
+plausible because they are the *default* condition's numbers. Reading the instantiated
+object means the manifest cannot claim a model that did not run. The run also prints
+both, so a mismatch is visible at a glance:
+
+```
+clustering: VBxClustering(Fa=0.07, Fb=0.8, threshold=0.6) (requested: pyannote-default)
+```
+
+Note the recorded form names the class and **every** hyperparameter the class declares,
+not only the ones overridden — a manifest recording just the swept parameter would not
+distinguish two sweeps that varied different parameters from the same defaults.
+
+Two further fields are written alongside it, both **additive** and deliberately *not* in
+`REQUIRED_RUN_CONFIG_FIELDS`, so existing manifests and callers stay valid:
+
+- `clustering_config` — the same readable description.
+- `intermediate_config_id` — the pre-clustering cache key, which excludes clustering by
+  design. See [[Pre-Clustering Cache]].
+
+`pipeline_config_id` itself is no longer the bare checkpoint string: it is a hash of the
+checkpoint plus the clustering class plus every instantiated hyperparameter. The readable
+description is recorded next to it because a hash alone is write-only — it tells a future
+reader that two runs differed, never what they were.
+
+### CLI flags
+
+- `--clustering-model` — closed vocabulary (`pyannote-default`, `agglomerative`, `vbx`,
+  `kmeans`), enforced by `argparse` `choices` and again in `build_pipeline`. Defaults to
+  `pyannote-default`, so omitting it reproduces prior behaviour exactly.
+- `--clustering-param NAME=VALUE` — repeatable hyperparameter override.
+- `--runs-dir` (default `"runs"`).
+
+See [[Evaluation Harness]] for the vocabulary, the two override seams, and why `kmeans`
+is selectable but not runnable.
+
+## Non-goals (still true)
+
+- No new scoring math — consumes the reporter's summary output as-is.
+- No implementation of the planned multispeaker-detection step — only the field to
+  record whether it was used. (Clustering-model selection *was* since implemented; see
+  `clustering_model` above and [[Evaluation Harness]].)
+- No SQLite/DB.
+- No changes to `harness/reporter.py`'s existing output shape — the manifest is additive.
+
+## Tests
+
+`tests/test_run_manifest.py` and `tests/test_aggregate_runs.py` — all fabricated inputs,
+no model/audio/dataset needed:
+
+- Manifest round-trips a full `run_config` + `summary` exactly.
+- Different `run_config`s produce different `run_id`s.
+- An identical `run_config` at the same (frozen/mocked) timestamp raises
+  `RunManifestError` on the second write and leaves the first manifest's contents
+  unchanged.
+- `runs_dir` is created if missing.
+- Omitting a required `run_config` field (e.g. `clustering_model`,
+  `segmentation_source_id`) raises before anything is written.
+- The aggregator builds one row per manifest with correct config + metric values, and
+  handles an empty `runs_dir` cleanly.
+
+`tests/test_run_harness_integration.py` has two tests added
+(`test_run_manifest_written_alongside_report`,
+`test_run_manifest_not_written_on_mid_run_failure`) verifying the orchestrator wiring
+end to end — correctly written and wired against the new `run_harness()` signature.
+
+**Known gap:** these two integration tests could not be run to a pass/fail result in this
+environment. The `full_pipeline` fixture shared across `tests/test_run_harness_integration.py`
+(defined in `tests/conftest.py`) fails on this Windows machine with
+`FileNotFoundError: Could not find file "trñ00"`. Root cause, confirmed during this
+ticket: `tests/data/debug.train.lst` intentionally contains a non-ASCII filename
+(`trñ00`, added upstream in commit `b41b176e`, "fix: fix support for non-ASCII
+characters") to test non-ASCII path handling, and the matching `trñ00.wav` audio file is
+correctly tracked in git and present on disk. The failure is `pyannote.database`'s file-list
+reader decoding that UTF-8-encoded filename using Windows' default `cp1252` codepage
+instead of UTF-8, producing a string that renders identically in a terminal but does not
+match the actual file. This affects every test in that file, including five pre-existing
+ones this ticket never touched — it is a pre-existing bug in `pyannote.database`'s
+encoding handling on Windows, unrelated to and out of scope for this ticket. It should be
+tracked as its own ticket if it needs fixing.
+
+## Key files
+
+- `harness/run_manifest.py` — `write_manifest`, `RunManifestError`
+- `harness/aggregate_runs.py` — `aggregate_runs`
+- `run_harness.py` — `run_harness()`'s new `clustering_model`/`runs_dir` params, `__main__`'s `--runs-dir` flag
+- `tests/test_run_manifest.py`, `tests/test_aggregate_runs.py`
+- `tests/test_run_harness_integration.py` — two new tests, blocked on the `full_pipeline` fixture encoding bug described above

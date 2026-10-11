@@ -1,0 +1,43 @@
+{
+  "run_id": "20261003T011053Z-8f353f1d",
+  "created_at": "2026-10-03T01:10:53.049087+00:00",
+  "run_config": {
+    "pipeline_config_id": "ae0db5834caed98feeecd5e2daa0901d3777ff4a25a17ac271804285a029945a",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "HDBSCANClustering(cluster_selection_method='eom', min_cluster_size=5, min_samples=0)",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "clustering_hdbscan",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "clustering-benchmark WS2 HDB-2a-01: min_cluster_size=5, min_samples=0, cluster_selection_method=eom",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "51c45049",
+    "counts_toward_results": false,
+    "oracle_rttm": null,
+    "clustering_config": "HDBSCANClustering(cluster_selection_method='eom', min_cluster_size=5, min_samples=0)",
+    "intermediate_config_id": "9d14609c921c5d50a850db35c99d6a3d279a924c401e1fb540ccaba30f2fec6f",
+    "inference_batch_sizes": {
+      "segmentation": 32,
+      "embedding": 32
+    }
+  },
+  "summary": {
+    "der": 0.9247463585082748,
+    "der_overlap_system": 0.9234258133952258,
+    "der_overlap_assigned": 0.9022690669468937,
+    "jer": 0.8585328013528621,
+    "counting_mae": 123.625,
+    "counting_exact_match_percent": 0.0,
+    "region_t_and_d": 2433.11687500005,
+    "region_t_minus_d": 1393.9391249999528,
+    "region_d_minus_t": 382.94937499995154,
+    "missed_detection": 2925.049468749914,
+    "false_alarm": 1099.0743744999131,
+    "confusion": 24378.465531250084
+  },
+  "duration_seconds": 152.56299999999464
+}

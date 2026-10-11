@@ -1,0 +1,32 @@
+{
+  "run_id": "20260917T013630Z-3c8deb71",
+  "created_at": "2026-09-17T01:36:30.948058+00:00",
+  "run_config": {
+    "pipeline_config_id": "pyannote/speaker-diarization-community-1",
+    "segmentation_source_id": "oracle",
+    "clustering_model": "pyannote-default",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "oracle_segmentation",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "T3 verification: oracle (ground-truth) segmentation, full AMI IHM test split (16 meetings)",
+    "refinement_strategy": "identity",
+    "oracle_scope": "all_pairs",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "3d3d9fa6",
+    "counts_toward_results": true
+  },
+  "summary": {
+    "der": 0.17048543579940637,
+    "der_overlap_system": 0.3339417838704696,
+    "der_overlap_assigned": 0.219454688210064,
+    "jer": 0.22186961360102092,
+    "counting_mae": 0.25,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2433.11687500005,
+    "region_t_minus_d": 1393.9391249999528,
+    "region_d_minus_t": 382.94937499995154
+  }
+}

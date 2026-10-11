@@ -150,7 +150,15 @@ class SpeakerDiarization(SpeakerDiarizationMixin, Pipeline):
         See pyannote.audio.pipelines.utils.get_plda for supported format.
     clustering : str, optional
         Clustering algorithm. See pyannote.audio.pipelines.clustering.Clustering
-        for available options. 
+        for available options.
+    refinement : Callable, optional
+        Post-clustering refinement strategy, called as
+        `refinement(embeddings, hard_clusters, soft_clusters, centroids, segmentations)`
+        and expected to return a `hard_clusters` array of identical shape.
+        Runs between the clustering call and inactive-speaker masking in `apply`.
+        Defaults to a no-op (returns `hard_clusters` unchanged). See
+        `harness.refinement` for ready-made strategies (e.g. `nearest_centroid`)
+        that can be passed here by the harness.
     segmentation_batch_size : int, optional
         Batch size used for speaker segmentation. Defaults to 1.
     embedding_batch_size : int, optional
@@ -213,6 +221,7 @@ class SpeakerDiarization(SpeakerDiarizationMixin, Pipeline):
         der_variant: Optional[dict] = None,
         token: Union[Text, None] = None,
         cache_dir: Union[Path, Text, None] = None,
+        refinement: Optional[Callable] = None,
     ):
         super().__init__()
 
@@ -231,6 +240,13 @@ class SpeakerDiarization(SpeakerDiarizationMixin, Pipeline):
         self._plda = get_plda(plda, token=token, cache_dir=cache_dir)
 
         self.klustering = clustering
+
+        # post-clustering refinement hook (see harness/refinement.py for the
+        # harness-side strategies this can be set to). Defaults to a no-op so
+        # existing pipeline behavior is unchanged when unset.
+        self.refinement = refinement if refinement is not None else (
+            lambda embeddings, hard_clusters, soft_clusters, centroids, segmentations: hard_clusters
+        )
 
         self.der_variant = der_variant or {"collar": 0.0, "skip_overlap": False}
 
@@ -637,7 +653,7 @@ class SpeakerDiarization(SpeakerDiarizationMixin, Pipeline):
         hook("embeddings", embeddings)
         #   shape: (num_chunks, local_num_speakers, dimension)
 
-        hard_clusters, _, centroids = self.clustering(
+        hard_clusters, soft_clusters, centroids = self.clustering(
             embeddings=embeddings,
             segmentations=binarized_segmentations,
             num_clusters=num_speakers,
@@ -648,6 +664,14 @@ class SpeakerDiarization(SpeakerDiarizationMixin, Pipeline):
         )
         # hard_clusters: (num_chunks, num_speakers)
         # centroids: (num_speakers, dimension)
+
+        # post-clustering refinement extension point (see harness/refinement.py).
+        # Defaults to a no-op; the harness can set self.refinement to select a
+        # strategy (e.g. nearest_centroid) via the refinement_strategy manifest
+        # field.
+        hard_clusters = self.refinement(
+            embeddings, hard_clusters, soft_clusters, centroids, segmentations
+        )
 
         # number of detected clusters is the number of different speakers
         num_different_speakers = np.max(hard_clusters) + 1

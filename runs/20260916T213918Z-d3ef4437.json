@@ -1,0 +1,31 @@
+{
+  "run_id": "20260916T213918Z-d3ef4437",
+  "created_at": "2026-09-16T21:39:18.251979+00:00",
+  "run_config": {
+    "pipeline_config_id": "pyannote/speaker-diarization-community-1",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "pyannote-default",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "baseline",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "baseline community-1, no modifications -- T1/T2 verification run (der components, der_overlap_system, der_overlap_assigned, region census, identity refinement hook)",
+    "refinement_strategy": "identity",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "3db89587",
+    "counts_toward_results": true
+  },
+  "summary": {
+    "der": 0.17049287033463784,
+    "der_overlap_system": 0.3339467146571433,
+    "der_overlap_assigned": 0.21945306864112454,
+    "jer": 0.22187246998379553,
+    "counting_mae": 0.25,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2433.1170000000147,
+    "region_t_minus_d": 1393.9389999999876,
+    "region_d_minus_t": 383.1260000000036
+  }
+}

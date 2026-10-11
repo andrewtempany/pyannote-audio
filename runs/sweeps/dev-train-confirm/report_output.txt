@@ -1,0 +1,8 @@
+bootstrap check OK on test nc_target: -0.26 -0.06
+   split        strategy        der     delta        lo        hi    n
+0    dev    vbx_identity  16.896036  0.000000  0.000000  0.000000   18
+1    dev  knn_target_k25  16.824705 -0.071332 -0.205355  0.048744   18
+2    dev       nc_target  16.835522 -0.060515 -0.186757  0.060861   18
+3  train    vbx_identity  15.647973  0.000000  0.000000  0.000000  136
+4  train  knn_target_k25  15.668792  0.020818 -0.023762  0.068272  136
+5  train       nc_target  15.698136  0.050163  0.010629  0.092125  136

@@ -96,3 +96,26 @@ pyannote/audio/version.py
 diarisation-env/
 Samples/
 *.mp4
+
+# Obsidian local UI state
+Obsidian-Diarisation/.obsidian/
+
+# harness run cache (regenerable, large)
+.harness_cache/
+# condition-isolated cache dirs (closeout-2 SDM: .harness_cache_sdm, and any
+# future .harness_cache_<condition>) -- same regenerable intermediates/RTTMs.
+.harness_cache*/
+
+# harness run outputs: manifests and per-file scores are results, not scratch.
+# runs/* not runs/ -- a negation cannot re-include from an excluded directory.
+runs/*
+!runs/*.json
+!runs/comparison.csv
+# clustering-benchmark sweep outputs (per-point CSV/summary/diagnostics, ledger,
+# index). Run logs are regenerable noise and stay ignored.
+!runs/sweeps/
+!runs/sweeps/**/*.csv
+runs/sweeps/**/*.log
+
+# upstream ignores *.csv above; per-file scores are results
+!per_file_*.csv

@@ -1,0 +1,32 @@
+{
+  "run_id": "20260917T005714Z-c93fb9f9",
+  "created_at": "2026-09-17T00:57:14.393339+00:00",
+  "run_config": {
+    "pipeline_config_id": "pyannote/speaker-diarization-community-1",
+    "segmentation_source_id": "baseline",
+    "clustering_model": "pyannote-default",
+    "extra_pipeline_steps": [],
+    "split": "test",
+    "condition": "oracle_assignment",
+    "der_collar": 0.0,
+    "der_skip_overlap": false,
+    "notes": "T4 verification (post cache-key fix): oracle assignment ceiling, overlap_degraded scope, full AMI IHM test split (16 meetings). Primary ceiling for post-clustering assignment fix (this is the honest scope for 'improving clustering' -- restricts refinement to pairs actually overlap-degraded, matching what a real classifier could target). +0.47pt DER recoverable vs baseline: 17.05% -> 16.58%.",
+    "refinement_strategy": "oracle",
+    "oracle_scope": "overlap_degraded",
+    "corpus": "AMI",
+    "mic_condition": "IHM",
+    "git_commit": "3d3d9fa6",
+    "counts_toward_results": true
+  },
+  "summary": {
+    "der": 0.1657950539631418,
+    "der_overlap_system": 0.3189178840574238,
+    "der_overlap_assigned": 0.19929222174253383,
+    "jer": 0.2137937081941508,
+    "counting_mae": 0.25,
+    "counting_exact_match_percent": 75.0,
+    "region_t_and_d": 2433.11687500005,
+    "region_t_minus_d": 1393.9391249999528,
+    "region_d_minus_t": 382.94937499995154
+  }
+}

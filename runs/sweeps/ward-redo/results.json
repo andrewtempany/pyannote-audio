@@ -1,0 +1,67 @@
+{
+  "grid": [
+    4.0,
+    5.0,
+    6.0,
+    7.0,
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    20.0
+  ],
+  "min_cluster_size": 12,
+  "selection_half": "tune (meetings ending a/c)",
+  "selected_threshold": 8.0,
+  "selected_point": "WARD-T8",
+  "selected_run_id": "20261008T094944Z-ef90e3f5",
+  "tune_best_at_grid_edge": false,
+  "tune_der_by_threshold": {
+    "4.0": 0.4702842717157041,
+    "5.0": 0.3674250483452013,
+    "6.0": 0.2760235546219675,
+    "7.0": 0.18636535909698304,
+    "8.0": 0.1636778135989184,
+    "10.0": 0.1643718960560176,
+    "12.0": 0.1643664369903723,
+    "14.0": 0.1725789539749123,
+    "16.0": 0.1725789539749123,
+    "20.0": 0.22072807970993794
+  },
+  "checks": {
+    "unique_final_keys": true,
+    "manifest_config_matches_request": true
+  },
+  "bootstrap_validation": {
+    "reference": {
+      "delta": -0.005539267379653795,
+      "low": -0.010829035359314957,
+      "high": -0.0013743556937805383
+    },
+    "reimplementation": {
+      "delta": -0.005539267379653795,
+      "low": -0.010829035359314957,
+      "high": -0.0013743556937805383
+    }
+  },
+  "fresh_baseline_der": {
+    "all": 0.17048543579940634,
+    "tune": 0.16257965496457943,
+    "report": 0.17732127942040085
+  },
+  "selected_report_der": 0.18420842497613413,
+  "delta_report_vs_fresh_baseline": {
+    "delta": 0.006887145555733276,
+    "low": -0.007679683246691199,
+    "high": 0.022841257747178614
+  },
+  "bootstrap_function_report_half": "reimplementation of harness/clustering_benchmark_report.py:57 paired_bootstrap_delta (tables passed in), validated equal on HDB-2b-04",
+  "selected_der_16": 0.17468816828809752,
+  "delta_16_vs_fresh_baseline": 0.004202732488691185,
+  "delta_16_interval_assignment_runs_bootstrap": {
+    "low": -0.004015397950108515,
+    "high": 0.0136095075454862,
+    "function": "harness/assignment_runs.py:150 bootstrap(), 2000 draws seed 0, 90% percentile"
+  }
+}
