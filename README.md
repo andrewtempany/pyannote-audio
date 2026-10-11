@@ -1,3 +1,11 @@
+## AIML339 research project: reproducing the results
+
+- **Report figures and numbers:** from the repo root, run `pip install -e . pandas` then `python3 report/make_figures.py`. It recomputes everything from the per-file result CSVs committed in `runs/`, so it needs no audio and no model runs.
+- **Evaluation harness:** `harness/`, entry point `run_harness.py` (wrapped by `run_experiment.sh`, which also logs each run). It needs the AMI corpus (`--data-root`) and a Hugging Face token in `.env`.
+- **Where things are:** `runs/` holds the outputs and manifests; `Obsidian-Diarisation/` holds the docs and tickets.
+
+The rest of this README is the upstream pyannote.audio documentation.
+
 <p align="center">
   <a href="https://pyannote.ai/" target="blank"><img src="https://avatars.githubusercontent.com/u/162698670" width="64" /></a>
 </p>
